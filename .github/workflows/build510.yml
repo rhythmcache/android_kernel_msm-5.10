@@ -37,15 +37,6 @@ jobs:
             git libssl-dev libelf-dev lz4 xz-utils zip python3 jq \
             device-tree-compiler
 
-      - name: Set up Swap Space
-        run: |
-          echo "=== Setting up 4G Swap Space ==="
-          sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          free -h
-
       - name: Download & Set up latest LLVM
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
