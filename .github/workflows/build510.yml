@@ -1,0 +1,117 @@
+name: Build 5.10 Kernel (blair-port)
+
+on:
+  push:
+    branches:
+      - blair-port
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Kernel (veux / BLAIR 5.10)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Environment
+        run: |
+          mkdir -p build_logs
+          echo "BUILD_DATE=$(date -u +%Y%m%d)" >> $GITHUB_ENV
+          echo "SHORT_SHA=$(echo '${{ github.sha }}' | cut -c1-8)" >> $GITHUB_ENV
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache curl flex \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
+            git libssl-dev libelf-dev lz4 xz-utils zip python3 jq
+
+      - name: Download & Set up latest LLVM
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p llvm
+
+          URL=$(curl -sSL --retry 3 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/llvm/llvm-project/releases/latest \
+            | jq -r '.assets[] | select(.name | test("^LLVM-[0-9.]+-Linux-X64\\.tar\\.xz$")) | .browser_download_url' \
+            | head -n 1)
+
+          if [ -z "$URL" ]; then
+            echo "::error::Could not find a Linux-X64 LLVM asset in the latest release"
+            exit 1
+          fi
+
+          echo "Downloading $URL"
+          curl -sSL --retry 3 "$URL" | tar -xJ --strip-components=1 -C llvm
+          echo "$GITHUB_WORKSPACE/llvm/bin" >> $GITHUB_PATH
+
+          llvm/bin/clang --version
+          llvm/bin/ld.lld --version
+
+      - name: Configure Kernel (veux_defconfig)
+        continue-on-error: true
+        id: config_step
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH"
+
+          echo "Generating defconfig: veux_defconfig"
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            veux_defconfig 2>&1 | tee build_logs/config.log
+
+      - name: Compile Kernel (Image & DTBs)
+        continue-on-error: true
+        id: build_step
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH"
+
+          echo "Starting kernel compilation..."
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            Image dtbs 2>&1 | tee build_logs/build.log
+
+      - name: Check Build Outputs
+        if: always()
+        run: |
+          echo "=== Build Artifact Check ==="
+          ls -la out/arch/arm64/boot/Image 2>/dev/null || echo "Image: Not found"
+          find out/arch/arm64/boot/dts -name "*veux*.dtb*" 2>/dev/null || echo "veux DTB: Not found"
+          find out/arch/arm64/boot/dts -name "*blair*.dtb*" 2>/dev/null || echo "blair DTBs: Not found"
+
+      - name: Upload Build Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-5.10-${{ env.SHORT_SHA }}
+          path: build_logs/*
+          retention-days: 14
+
+      - name: Upload Built Images (if succeeded)
+        if: steps.build_step.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-images-5.10-${{ env.SHORT_SHA }}
+          path: |
+            out/arch/arm64/boot/Image
+            out/arch/arm64/boot/dts/vendor/xiaomi/veux*.dtb*
+            out/arch/arm64/boot/dts/vendor/qcom/blair*.dtb*
+          retention-days: 7
