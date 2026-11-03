@@ -628,7 +628,6 @@ static inline int ufs_qcom_ice_resume(struct ufs_qcom_host *host)
 }
 static inline void ufs_qcom_ice_disable(struct ufs_qcom_host *host)
 {
-	return 0;
 }
 #define ufs_qcom_ice_program_key NULL
 #endif /* !CONFIG_SCSI_UFS_CRYPTO */
