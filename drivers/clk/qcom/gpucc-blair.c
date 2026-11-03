@@ -22,9 +22,9 @@
 #include "reset.h"
 #include "vdd-level-holi.h"
 
-static DEFINE_VDD_REGULATORS(vdd_cx, VDD_HIGH_L1 + 1, 1, vdd_corner);
-static DEFINE_VDD_REGULATORS(vdd_mx, VDD_HIGH_L1 + 1, 1, vdd_corner);
-static DEFINE_VDD_REGULATORS(vdd_gx, VDD_NUM, 2, vdd_gx_corner);
+static DEFINE_VDD_REGULATORS(vdd_cx, VDD_NUM, 1, vdd_corner);
+static DEFINE_VDD_REGULATORS(vdd_mx, VDD_NUM, 1, vdd_corner);
+static DEFINE_VDD_REGULATORS(vdd_gx, VDD_NUM, 1, vdd_corner);
 
 static struct clk_vdd_class *gpu_cc_blair_regulators[] = {
 	&vdd_mx,

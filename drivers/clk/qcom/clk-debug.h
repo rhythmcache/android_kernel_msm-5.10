@@ -4,6 +4,10 @@
 #ifndef __QCOM_CLK_DEBUG_H__
 #define __QCOM_CLK_DEBUG_H__
 
+#ifndef CLK_IS_MEASURE
+#define CLK_IS_MEASURE BIT(15)
+#endif
+
 #include <linux/platform_device.h>
 #include "../clk.h"
 
