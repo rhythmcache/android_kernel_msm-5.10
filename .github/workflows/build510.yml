@@ -61,7 +61,7 @@ jobs:
           llvm/bin/clang --version
           llvm/bin/ld.lld --version
 
-      - name: Configure Kernel (veux_defconfig)
+      - name: Configure Kernel (gki_defconfig + holi_GKI.config + veux.config)
         continue-on-error: true
         id: config_step
         run: |
@@ -69,11 +69,11 @@ jobs:
           export SUBARCH=arm64
           export PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH"
 
-          echo "Generating defconfig: veux_defconfig"
+          echo "Generating defconfig: gki_defconfig + vendor/holi_GKI.config + vendor/veux.config"
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
             CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            veux_defconfig 2>&1 | tee build_logs/config.log
+            gki_defconfig vendor/holi_GKI.config vendor/veux.config 2>&1 | tee build_logs/config.log
 
       - name: Compile Kernel (Image & DTBs)
         continue-on-error: true
