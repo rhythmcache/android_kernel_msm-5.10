@@ -232,6 +232,8 @@ ld_flags       = $(KBUILD_LDFLAGS) $(ldflags-y) $(LDFLAGS_$(@F))
 # compile an out-of-tree device tree.
 KBUILD_DTC_INCLUDE += $(srctree)/techpack/audio/include
 KBUILD_DTC_INCLUDE += $(srctree)/techpack/camera
+KBUILD_DTC_INCLUDE += $(srctree)/arch/arm64/boot/dts/vendor/qcom/display/display
+KBUILD_DTC_INCLUDE += $(srctree)/arch/arm64/boot/dts/vendor/qcom/display
 
 DTC_INCLUDE    += $(srctree)/scripts/dtc/include-prefixes $(KBUILD_DTC_INCLUDE)
 
