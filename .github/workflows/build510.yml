@@ -114,24 +114,6 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             dtbs 2>&1 | tee build_logs/03_dtbs.log
 
-      - name: (d) Build Kernel Modules (modules)
-        continue-on-error: true
-        id: modules_step
-        run: |
-          export ARCH=arm64
-          export SUBARCH=arm64
-          export PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH"
-
-          if [ -f out/.config ] && grep -q "^CONFIG_MODULES=y" out/.config; then
-            echo "Compiling Kernel Modules..."
-            make -k -j$(nproc --all) O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
-              CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-              CLANG_TRIPLE=aarch64-linux-gnu- \
-              modules 2>&1 | tee build_logs/04_modules.log
-          else
-            echo "CONFIG_MODULES is disabled; skipping modules build."
-          fi
-
       - name: Collect Errors and Aggregate Logs
         if: always()
         run: |
@@ -139,7 +121,6 @@ jobs:
           cat build_logs/01_config.log 2>/dev/null > build_logs/build.log || true
           cat build_logs/02_image.log 2>/dev/null >> build_logs/build.log || true
           cat build_logs/03_dtbs.log 2>/dev/null >> build_logs/build.log || true
-          cat build_logs/04_modules.log 2>/dev/null >> build_logs/build.log || true
 
           grep -nE "error:|Error [0-9]+|undefined reference|No rule to make|fatal error|ERROR:" build_logs/build.log | sort -u > build_logs/errors.txt || true
           echo "=== Aggregated errors.txt (Top 50 lines) ==="
