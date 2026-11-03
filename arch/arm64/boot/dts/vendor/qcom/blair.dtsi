@@ -3345,7 +3345,78 @@
 #include "holi-thermal.dtsi"
 #include "holi-qupv3.dtsi"
 #include "display/blair-sde.dtsi"
+
+&soc {
+	adsp_pas: remoteproc-adsp {
+		status = "disabled";
+	};
+
+	gfx_cdev: gfx-cdev {
+		compatible = "qcom,regulator-cooling-device";
+		regulator-cdev-supply = <&S8A_LEVEL_AO>;
+		regulator-levels = <RPM_SMD_REGULATOR_LEVEL_RETENTION
+				RPM_SMD_REGULATOR_LEVEL_SVS_PLUS>;
+		#cooling-cells = <2>;
+	};
+
+	audio_apr: qcom,msm-audio-apr {
+		compatible = "qcom,msm-audio-apr";
+		qcom,subsys-name = "apr_adsp";
+
+		msm_audio_ion: qcom,msm-audio-ion {
+			compatible = "qcom,msm-audio-ion";
+			qcom,smmu-version = <2>;
+			qcom,smmu-enabled;
+			iommus = <&apps_smmu 0x1801 0x0>;
+			qcom,iommu-dma-addr-pool = <0x10000000 0x10000000>;
+		};
+	};
+
+	cxip_cdev: cxip-cdev@3ed000 {
+		compatible = "qcom,cxip-lm-cooling-device";
+		reg = <0x3ed000 0xe008>;
+		qcom,thermal-client-offset = <0x8000>;
+		qcom,bypass-client-list = <0x2004 0x4004 0x6004 0xc004 0xc008 0xe004>;
+		#cooling-cells = <2>;
+		status = "disabled";
+	};
+
+	pm6150l_gpios: pinctrl@c000 {
+		compatible = "qcom,spmi-gpio";
+		reg = <0xc000 0x1000>;
+		#gpio-cells = <2>;
+		gpio-controller;
+		status = "disabled";
+	};
+};
+
 #include "holi-audio.dtsi"
+
+&msm_dai_mi2s {
+	dai_mi2s0_rx: qcom,msm-dai-q6-mi2s-prim-rx {
+		compatible = "qcom,msm-dai-q6-mi2s";
+		qcom,msm-dai-q6-mi2s-dev-id = <0>;
+		qcom,msm-mi2s-lines = <3>;
+	};
+
+	dai_mi2s0_tx: qcom,msm-dai-q6-mi2s-prim-tx {
+		compatible = "qcom,msm-dai-q6-mi2s";
+		qcom,msm-dai-q6-mi2s-dev-id = <0>;
+		qcom,msm-mi2s-lines = <0>;
+	};
+
+	dai_mi2s1_rx: qcom,msm-dai-q6-mi2s-sec-rx {
+		compatible = "qcom,msm-dai-q6-mi2s";
+		qcom,msm-dai-q6-mi2s-dev-id = <1>;
+		qcom,msm-mi2s-lines = <1>;
+	};
+
+	dai_mi2s1_tx: qcom,msm-dai-q6-mi2s-sec-tx {
+		compatible = "qcom,msm-dai-q6-mi2s";
+		qcom,msm-dai-q6-mi2s-dev-id = <1>;
+		qcom,msm-mi2s-lines = <0>;
+	};
+};
 #include "blair-usb.dtsi"
 #include "ipcc-test-holi.dtsi"
 

@@ -13,6 +13,8 @@
 #include "veux-touchscreen.dtsi"
 #include "veux-usb.dtsi"
 #include <dt-bindings/iio/qti_power_supply_iio.h>
+#include <dt-bindings/iio/qcom,spmi-vadc.h>
+#include <dt-bindings/iio/qcom,spmi-adc7-pmk8350.h>
 
 / {
 	aliases {
