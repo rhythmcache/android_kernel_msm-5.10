@@ -34,7 +34,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             bc bison build-essential ccache curl flex \
             gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
-            git libssl-dev libelf-dev lz4 xz-utils zip python3 jq
+            git libssl-dev libelf-dev lz4 xz-utils zip python3 jq \
+            device-tree-compiler
 
       - name: Download & Set up latest LLVM
         env:
@@ -58,10 +59,20 @@ jobs:
           curl -sSL --retry 3 "$URL" | tar -xJ --strip-components=1 -C llvm
           echo "$GITHUB_WORKSPACE/llvm/bin" >> $GITHUB_PATH
 
-          llvm/bin/clang --version
-          llvm/bin/ld.lld --version
+      - name: Check Host Tools and Print Versions
+        run: |
+          export PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH"
+          echo "=== Host Tools Check ==="
+          for tool in clang ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-readelf llvm-strip \
+                      aarch64-linux-gnu-gcc arm-linux-gnueabi-gcc bison flex bc python3 make dtc; do
+            p=$(which $tool 2>/dev/null || echo "NOT FOUND")
+            echo "--- $tool: $p ---"
+            if [ "$p" != "NOT FOUND" ]; then
+              $tool --version 2>&1 | head -n 2 || true
+            fi
+          done
 
-      - name: Configure Kernel (gki_defconfig + holi_GKI.config + veux.config)
+      - name: (a) Configure Kernel (gki_defconfig + holi_GKI.config + veux.config)
         continue-on-error: true
         id: config_step
         run: |
@@ -73,21 +84,66 @@ jobs:
           make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
             CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            gki_defconfig vendor/holi_GKI.config vendor/veux.config 2>&1 | tee build_logs/config.log
+            gki_defconfig vendor/holi_GKI.config vendor/veux.config 2>&1 | tee build_logs/01_config.log
 
-      - name: Compile Kernel (Image & DTBs)
+      - name: (b) Build Kernel Image (Image)
         continue-on-error: true
-        id: build_step
+        id: image_step
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
           export PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH"
 
-          echo "Starting kernel compilation..."
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
+          echo "Compiling Kernel Image..."
+          make -k -j$(nproc --all) O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
             CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            Image dtbs 2>&1 | tee build_logs/build.log
+            Image 2>&1 | tee build_logs/02_image.log
+
+      - name: (c) Build Device Tree Blobs (dtbs)
+        continue-on-error: true
+        id: dtbs_step
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH"
+
+          echo "Compiling Device Tree Blobs..."
+          make -k -j$(nproc --all) O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            dtbs 2>&1 | tee build_logs/03_dtbs.log
+
+      - name: (d) Build Kernel Modules (modules)
+        continue-on-error: true
+        id: modules_step
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH"
+
+          if [ -f out/.config ] && grep -q "^CONFIG_MODULES=y" out/.config; then
+            echo "Compiling Kernel Modules..."
+            make -k -j$(nproc --all) O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
+              CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+              CLANG_TRIPLE=aarch64-linux-gnu- \
+              modules 2>&1 | tee build_logs/04_modules.log
+          else
+            echo "CONFIG_MODULES is disabled; skipping modules build."
+          fi
+
+      - name: Collect Errors and Aggregate Logs
+        if: always()
+        run: |
+          set -euo pipefail
+          cat build_logs/01_config.log 2>/dev/null > build_logs/build.log || true
+          cat build_logs/02_image.log 2>/dev/null >> build_logs/build.log || true
+          cat build_logs/03_dtbs.log 2>/dev/null >> build_logs/build.log || true
+          cat build_logs/04_modules.log 2>/dev/null >> build_logs/build.log || true
+
+          grep -nE "error:|Error [0-9]+|undefined reference|No rule to make|fatal error|ERROR:" build_logs/build.log | sort -u > build_logs/errors.txt || true
+          echo "=== Aggregated errors.txt (Top 50 lines) ==="
+          head -n 50 build_logs/errors.txt || true
 
       - name: Check Build Outputs
         if: always()
@@ -97,7 +153,7 @@ jobs:
           find out/arch/arm64/boot/dts -name "*veux*.dtb*" 2>/dev/null || echo "veux DTB: Not found"
           find out/arch/arm64/boot/dts -name "*blair*.dtb*" 2>/dev/null || echo "blair DTBs: Not found"
 
-      - name: Upload Build Logs
+      - name: Upload Build Logs and Errors
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -105,8 +161,8 @@ jobs:
           path: build_logs/*
           retention-days: 14
 
-      - name: Upload Built Images (if succeeded)
-        if: steps.build_step.outcome == 'success'
+      - name: Upload Built Images (if produced)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kernel-images-5.10-${{ env.SHORT_SHA }}
@@ -114,4 +170,5 @@ jobs:
             out/arch/arm64/boot/Image
             out/arch/arm64/boot/dts/vendor/xiaomi/veux*.dtb*
             out/arch/arm64/boot/dts/vendor/qcom/blair*.dtb*
+          if-no-files-found: ignore
           retention-days: 7
