@@ -47,11 +47,6 @@ const u8 icc_qnoc_qos_regs[][QOSGEN_OFF_MAX_REGS] = {
 };
 EXPORT_SYMBOL(icc_qnoc_qos_regs);
 
-enum {
-	QOSGEN_OFF_MPORT_BKE_EN,
-	QOSGEN_OFF_MPORT_BKE_HEALTH,
-};
-
 const u8 icc_bimc_qos_regs[][QOSGEN_OFF_MAX_REGS] = {
 	[ICC_QNOC_QOSGEN_TYPE_RPMH] = {
 		[QOSGEN_OFF_MPORT_BKE_EN] = 0x0,
