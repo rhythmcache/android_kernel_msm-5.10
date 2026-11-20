@@ -77,9 +77,28 @@
 
 ---
 
-### Run 4 Setup:
+### Run 4 (Commit `a0b8ac72dd52`):
 1. **Ported Yupik UFS PHY Driver**:
    - Added `phy-qcom-ufs-qmp-v4-yupik.c` and `phy-qcom-ufs-qmp-v4-yupik.h` to `drivers/phy/qualcomm/`.
    - Updated `drivers/phy/qualcomm/Makefile` under `CONFIG_PHY_QCOM_UFS_V4`.
 2. **Diagnostic & Devlink Cmdline**:
    - Updated `CONFIG_CMDLINE` in `veux.config` with `fw_devlink=permissive deferred_probe_timeout=5 loglevel=8`.
+3. **CI Verification**:
+   - Verified `phy-qcom-ufs-qmp-v4-yupik.o` compiled into Image and `qcom,ufs-phy-qmp-v4-yupik` string is present in Image binary.
+   - Identified that `qcom,rpm-smd-regulator` and `qcom,qsmmu-v500` were `=m` in `holi_GKI.config` and not yet built-in.
+
+---
+
+### Run 5 Setup (Storage & Transport Built-in Alignment):
+1. **SMD-RPM Transport & Regulators Built-in**:
+   - Built-in `CONFIG_MSM_RPM_SMD=y`, `CONFIG_REGULATOR_RPM_SMD=y` (powers UFS supplies L4A/L7A).
+   - Built-in `CONFIG_RPMSG_QCOM_GLINK=y`, `CONFIG_RPMSG_QCOM_GLINK_RPM=y`, `CONFIG_RPMSG_QCOM_GLINK_SMEM=y`, `CONFIG_QCOM_GLINK=y`.
+   - Built-in `CONFIG_QCOM_CLK_SMD_RPM=y`, `CONFIG_SPMI_PMIC_CLKDIV=y`, `CONFIG_MSM_CLK_AOP_QMP=y`.
+   - Built-in `CONFIG_REGULATOR_QCOM_PM8008=y`, `CONFIG_MFD_I2C_PMIC=y`.
+2. **SMMU / IOMMU Built-in**:
+   - Built-in `CONFIG_ARM_SMMU=y`, `CONFIG_QTI_IOMMU_SUPPORT=y` (resolves `ufshc@4804000` SMMU dependency).
+3. **Sleep & Keypad Helpers**:
+   - Built-in `CONFIG_QCOM_SMP2P_SLEEPSTATE=y`, `CONFIG_QCOM_SUBSYSTEM_SLEEP_STATS=y`, `CONFIG_KEYBOARD_GPIO=y`.
+4. **Cmdline & Buffer Protection**:
+   - Removed `initcall_debug` to prevent 256KB ramoops console ring buffer rollover during the 10s init wait.
+   - Kept `fw_devlink=permissive deferred_probe_timeout=5 loglevel=8 ignore_loglevel panic=5 qcom_scm.download_mode=0`.
