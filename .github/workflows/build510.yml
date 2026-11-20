@@ -131,6 +131,8 @@ jobs:
         run: |
           echo "=== Build Artifact Check ==="
           ls -la out/arch/arm64/boot/Image 2>/dev/null || echo "Image: Not found"
+          ls -la out/vmlinux 2>/dev/null || echo "vmlinux: Not found"
+          ls -la out/System.map 2>/dev/null || echo "System.map: Not found"
           find out/arch/arm64/boot/dts -name "*veux*.dtb*" 2>/dev/null || echo "veux DTB: Not found"
           find out/arch/arm64/boot/dts -name "*blair*.dtb*" 2>/dev/null || echo "blair DTBs: Not found"
 
@@ -149,6 +151,8 @@ jobs:
           name: kernel-images-5.10-${{ env.SHORT_SHA }}
           path: |
             out/arch/arm64/boot/Image
+            out/vmlinux
+            out/System.map
             out/arch/arm64/boot/dts/vendor/xiaomi/veux*.dtb*
             out/arch/arm64/boot/dts/vendor/qcom/blair*.dtb*
           if-no-files-found: ignore
