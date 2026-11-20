@@ -23,7 +23,7 @@
 - **Root Cause**: `msm-poweroff` probe invoked uninitialized `__scm` pointer at pure_initcall.
 
 ### Run 2: Test Build `f746b6fde58d`
-- **Result**: Stuck on Poco logo, then dark screen. Fastboot mode entered after user pressed Power + Vol Down.
+- **Result**: Stuck on Poco logo, then dark screen. Fastboot mode entered after repeated failed boot attempts (exact cause of fastboot entry unverified).
 - **Log Captured**: `/sdcard/kernel-port/port-logs/fail2-20261120_211216/console-ramoops-0`
 - **Execution Reach**: Reached $t = 0.858830\text{ s}$ (`Linux version 5.10.272-gf746b6fde58d`). All early subsystems, SMP, clocks, regulators, pinctrl, and early drivers probed.
 - **Crash Site**:
@@ -35,20 +35,19 @@
   [ 0.854332] Kernel panic - not syncing: BRK handler: Fatal exception
   [ 0.858830] Rebooting in 5 seconds..
   ```
-- **Root Cause**:
+- **Analysis**:
   1. Opcode `d42aa240` is `brk #0x5512` = Clang UBSAN trap (`0x5500 + kind 0x12`), triggered by `CONFIG_UBSAN_TRAP=y` during `dummy_hcd` initialization.
-  2. Dark screen / no reboot: `msm-restart` probe was deferred waiting for `qcom_scm`. When panic hit at $t = 0.85\text{ s}$, no restart handler was registered on the notifier chain. `machine_restart()` printed "Reboot failed -- System halted" and entered an infinite loop with interrupts disabled.
-  3. Fastboot entry: Caused by Power + Vol Down button combination during recovery attempts.
+  2. Reset Behavior: Both `psci_sys_reset_nb` (priority 129) and `qcom_wdt_core` restart handler (priority 255) were registered. Furthermore, GPT attributes for `boot_a` showed `tries=0` and `unbootable=1`, confirming that resets did occur and ABL performed multiple boot attempts before exhausting retries. Commit `1d69a506e223` (registering PS_HOLD unconditionally before SCM) is defensive hardening to guarantee PS_HOLD availability at any stage, not a confirmed single root cause for the dark screen.
+  3. SCM configuration: If `qcom_scm` is not yet probed when `msm_restart_probe()` runs, the driver skips setting SCM download mode (which defaults to 0).
 
 ---
 
-### Fixes for Run 3:
+### Fixes & Diagnostic Steps for Run 3:
 1. **msm-poweroff (`1d69a506e223`)**:
-   - Mapped `pshold-base` and registered `pm_power_off` / `restart_nb` (priority 200) unconditionally at the very start of probe, with no probe deferral.
-   - SCM download mode configuration is now guarded by `if (qcom_scm_is_available())` rather than aborting probe.
-2. **Configuration (`b8808d8b19ea`)**:
-   - Disabled virtual `CONFIG_USB_DUMMY_HCD`.
-   - Disabled `CONFIG_UBSAN_TRAP` so UBSAN errors log warnings instead of triggering fatal `BRK` panics.
+   - Hardening: mapped `pshold-base` and registered `pm_power_off` / `restart_nb` unconditionally in probe.
+   - Guarded SCM download mode call with `if (qcom_scm_is_available())`. If SCM is unavailable, SCM download mode configuration is skipped (download mode defaults to 0).
+2. **Sanitizer & Diagnostics Configuration (`774c96c2ed01`)**:
+   - Re-enabled `CONFIG_USB_DUMMY_HCD=y` for one diagnostic run with `CONFIG_UBSAN_TRAP` disabled so UBSAN prints a full non-fatal report with exact file and line number.
    - Kept `CONFIG_PANIC_TIMEOUT=5`.
 3. **CI Artifacts**:
    - Updated GitHub Actions workflow to upload `vmlinux` and `System.map` alongside `Image` and DTBs.
