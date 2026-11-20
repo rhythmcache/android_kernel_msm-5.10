@@ -57,7 +57,7 @@ static struct nvmem_cell *nvmem_cell;
  * There is no API from TZ to re-enable the registers.
  * So the SDI cannot be re-enabled when it already by-passed.
  */
-static int download_mode = 1;
+static int download_mode = 0;
 static struct kobject dload_kobj;
 
 static int in_panic;
@@ -528,6 +528,9 @@ static int msm_restart_probe(struct platform_device *pdev)
 	struct resource *mem;
 	struct device_node *np;
 	int ret = 0;
+
+	if (!qcom_scm_is_available())
+		return -EPROBE_DEFER;
 
 	nvmem_cell = devm_nvmem_cell_get(dev, "restart_reason");
 	if (PTR_ERR(nvmem_cell) == -EPROBE_DEFER)
