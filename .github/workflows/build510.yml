@@ -73,7 +73,6 @@ jobs:
           done
 
       - name: (a) Configure Kernel (gki_defconfig + holi_GKI.config + veux.config)
-        continue-on-error: true
         id: config_step
         run: |
           export ARCH=arm64
@@ -87,7 +86,6 @@ jobs:
             gki_defconfig vendor/holi_GKI.config vendor/veux.config 2>&1 | tee build_logs/01_config.log
 
       - name: (b) Build Kernel Image (Image)
-        continue-on-error: true
         id: image_step
         run: |
           export ARCH=arm64
@@ -99,6 +97,7 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             Image 2>&1 | tee build_logs/02_image.log
+          test -f out/arch/arm64/boot/Image
 
       - name: (c) Build Device Tree Blobs (dtbs)
         continue-on-error: true
