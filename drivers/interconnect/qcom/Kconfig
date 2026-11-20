@@ -227,6 +227,9 @@ config INTERCONNECT_QCOM_CPUCP_L3
 config INTERCONNECT_QCOM_SMD_RPM
 	tristate
 
+config INTERCONNECT_QCOM_RPM
+	tristate
+
 config INTERCONNECT_QCOM_SDXLEMUR
 	tristate "SDXLEMUR interconnect driver"
 	depends on INTERCONNECT_QCOM
