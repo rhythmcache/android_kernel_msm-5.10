@@ -63,14 +63,23 @@
 
 ---
 
-### Run 3 Setup & Hardening:
-1. **Revert PS_HOLD change (`1d69a506e223` reverted)**:
-   - Reverted `1d69a506e223` to keep `msm-poweroff.c` strictly identical to working VectorKernel base (plus the verified `if (!qcom_scm_is_available()) return -EPROBE_DEFER;` guard from `f746b6fde58d`).
-   - PSCI warm reset remains the primary reset path. Note: the hypothesis that PS_HOLD hard reset wipes pstore is an unverified hypothesis, not an established finding, but avoiding untested changes to the reset path keeps variables controlled.
-2. **Align Sanitizers with Vector 5.4**:
-   - Disabled `CONFIG_USB_DUMMY_HCD`: emulated dummy USB host controller is unnecessary on real hardware.
-   - Disabled `CONFIG_UBSAN` entirely (`# CONFIG_UBSAN is not set`), matching Vector 5.4 defconfig.
-   - Note: In 5.10 GKI, `CONFIG_UBSAN_LOCAL_BOUNDS` has no runtime logging handler and strictly traps. Disabling UBSAN eliminates false positive trap instructions while keeping `CONFIG_CFI_CLANG=y`.
-3. **CI Artifacts & Build Classification**:
-   - Commit `9320790a5bbe` is designated as a **boot candidate, not diagnostic**. Because UBSAN and dummy_hcd are disabled, its vmlinux cannot be used to symbolize the Test 2 crash.
-   - For file:line symbolization of the Test 2 crash, a separate unchanged build of commit `f746b6fde58d` with vmlinux/System.map uploaded must be used.
+### Run 3: Test Build `015d22e5b04b`
+- **Result**: Boot reached userspace `/init` at $t = 0.89\text{s}$! Reboots occurred cleanly after 10s timeout, safely completing 7 automated retry cycles and falling back to Slot B.
+- **Log Captured**: `/sdcard/kernel-port/logs/015d22e5b04b/console-ramoops-0`
+- **Execution Reach**:
+  - Reached userspace `/init` at $t = 0.890461\text{s}$.
+  - Switched root to `/first_stage_ramdisk` at $t = 0.900384\text{s}$.
+  - First-stage init waited 10,000 ms for storage block devices (`boot_a`, `dtbo_a`, `super`, `vbmeta_a`), timed out, and panicked with `exitcode=0x00007f00`.
+- **Root Cause**:
+  - `4804000.ufshc` deferred probe with `-517` (`-EPROBE_DEFER`) waiting for `ufsphy`.
+  - The UFS PHY node in `blair-qrd.dtsi` requested `compatible = "qcom,ufs-phy-qmp-v4-yupik"`.
+  - The driver for `qcom,ufs-phy-qmp-v4-yupik` was present in Vector 5.4 but completely missing in 5.10 `drivers/phy/qualcomm/`.
+
+---
+
+### Run 4 Setup:
+1. **Ported Yupik UFS PHY Driver**:
+   - Added `phy-qcom-ufs-qmp-v4-yupik.c` and `phy-qcom-ufs-qmp-v4-yupik.h` to `drivers/phy/qualcomm/`.
+   - Updated `drivers/phy/qualcomm/Makefile` under `CONFIG_PHY_QCOM_UFS_V4`.
+2. **Diagnostic & Devlink Cmdline**:
+   - Updated `CONFIG_CMDLINE` in `veux.config` with `fw_devlink=permissive deferred_probe_timeout=5 loglevel=8`.
