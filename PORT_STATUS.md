@@ -3,6 +3,24 @@
 ## Current Milestone: Boot to Early Init / Userspace
 - **Active Working Slot**: Slot B (`5.4.302~Vector/0b200678`)
 - **Test Slot**: Slot A
+- **Hardening & Tracing Baseline (Vector 5.4 vs Port 5.10)**:
+  - Vector 5.4 (`/proc/config.gz`):
+    - `CONFIG_CFI_CLANG`: Disabled (`# CONFIG_CFI_CLANG is not set`)
+    - `CONFIG_SHADOW_CALL_STACK`: Disabled (`# CONFIG_SHADOW_CALL_STACK is not set`)
+    - `CONFIG_KPROBES`: Disabled (`# CONFIG_KPROBES is not set`)
+    - `CONFIG_KRETPROBES`: Disabled (`# CONFIG_KRETPROBES is not set`)
+    - `CONFIG_FTRACE`: Disabled (`# CONFIG_FTRACE is not set`)
+    - `CONFIG_UBSAN`: Disabled (`# CONFIG_UBSAN is not set`)
+    - `CONFIG_LTO_CLANG`: Enabled (`CONFIG_LTO_CLANG=y`)
+    - `CONFIG_RANDOMIZE_BASE`: Enabled (`CONFIG_RANDOMIZE_BASE=y`)
+  - Port 5.10 (at `f746b6fde58d`):
+    - `CONFIG_CFI_CLANG=y`
+    - `CONFIG_SHADOW_CALL_STACK=y`
+    - `CONFIG_KPROBES=y`
+    - `CONFIG_KRETPROBES=y`
+    - `CONFIG_UBSAN=y` (`CONFIG_UBSAN_TRAP=y`, `CONFIG_UBSAN_LOCAL_BOUNDS=y`)
+    - `CONFIG_LTO_CLANG_THIN=y`
+    - `CONFIG_RANDOMIZE_BASE=y`
 - **Latest Commits Pushed**:
   - `9320790a5bbe`: `veux.config: disable USB_DUMMY_HCD and CONFIG_UBSAN matching Vector 5.4` [Boot candidate, not diagnostic: UBSAN and USB_DUMMY_HCD disabled, do not use to symbolize old crashes]
   - `9af300b6acab`: `Revert "msm-poweroff: register pshold restart handler unconditionally before SCM"`
@@ -35,10 +53,13 @@
   [ 0.854332] Kernel panic - not syncing: BRK handler: Fatal exception
   [ 0.858830] Rebooting in 5 seconds..
   ```
-- **Analysis**:
-  1. Opcode `d42aa240` is `brk #0x5512` = Clang UBSAN trap (`0x5500 + kind 0x12`), triggered by `CONFIG_UBSAN_TRAP=y` during `dummy_hcd` initialization.
-  2. Reset Behavior: Both `psci_sys_reset_nb` (priority 129) and `qcom_wdt_core` restart handler (priority 255) were registered. Furthermore, GPT attributes for `boot_a` showed `tries=0` and `unbootable=1`, confirming that resets did occur and ABL performed multiple boot attempts before exhausting retries. Commit `1d69a506e223` (registering PS_HOLD unconditionally before SCM) is defensive hardening to guarantee PS_HOLD availability at any stage, not a confirmed single root cause for the dark screen.
-  3. SCM configuration: If `qcom_scm` is not yet probed when `msm_restart_probe()` runs, the driver skips setting SCM download mode (which defaults to 0).
+- **Verified Facts & Root Cause Analysis**:
+  1. Symbol Name: In the raw pstore bytes, the printed symbol text is corrupted/unreliable (showing mangled words like `exit_ucbWep_qet_-appacked_limit` and `exit_ucb_ep_ret_maxpackep_limip`). Neither matches any valid kernel symbol.
+  2. Guard Instruction & Trap: In `drivers/usb/dwc3/dwc3-msm-ops.c`, `exit_usb_ep_set_maxpacket_limit` contains an array access `dwc->eps[epnum]` protected by a bounds check (`cmp w8, #0x20; b.hs +0x38`) inserted by Clang's `-fsanitize=local-bounds` (`CONFIG_UBSAN_LOCAL_BOUNDS`). The instruction at `+0x38` is `brk #0x5512` (`d42aa240`).
+  3. Register State: Register `x8` held `0x0000000000000064` (100 in decimal), which exceeded the 32-element limit (`#0x20`) and directly triggered the trap.
+  4. Dummy Endpoint Cast Bug: The entry hook `entry_usb_ep_set_maxpacket_limit` blindly cast `struct usb_ep *ep` passed by `dummy_hcd` (`usb_ep_set_maxpacket_limit(&ep->ep, ~0)`) into a `struct dwc3_ep`. Because `dummy_ep` has a completely different layout and size (`0x60` bytes) than `dwc3_ep`, reading `*(ep + 0xaa)` accessed memory outside `dummy_ep`, storing a bogus value into `data->xi0` that became `x8=0x64` in the exit handler.
+  5. Reset Behavior: Both `psci_sys_reset_nb` (priority 129) and `qcom_wdt_core` restart handler (priority 255) were registered. GPT attributes for `boot_a` showed `tries=0` and `unbootable=1`, confirming that resets occurred and ABL performed multiple boot attempts before exhausting retries. Commit `1d69a506e223` (registering PS_HOLD unconditionally before SCM) was defensive hardening, not a confirmed single root cause for the dark screen.
+  6. SCM configuration: If `qcom_scm` is not yet probed when `msm_restart_probe()` runs, the driver skips setting SCM download mode (which defaults to 0).
 
 ---
 
