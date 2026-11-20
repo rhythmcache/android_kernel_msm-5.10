@@ -529,25 +529,8 @@ static int msm_restart_probe(struct platform_device *pdev)
 	struct device_node *np;
 	int ret = 0;
 
-	/*
-	 * Map pshold and register restart and poweroff handlers immediately.
-	 * Do not defer probe before the restart handler is active, so early panics
-	 * can always reset the hardware via PS_HOLD.
-	 */
-	mem = platform_get_resource_byname(pdev, IORESOURCE_MEM, "pshold-base");
-	msm_ps_hold = devm_ioremap_resource(dev, mem);
-	if (IS_ERR(msm_ps_hold))
-		return PTR_ERR(msm_ps_hold);
-
-	mem = platform_get_resource_byname(pdev, IORESOURCE_MEM,
-					   "tcsr-boot-misc-detect");
-	if (mem)
-		tcsr_boot_misc_detect = mem->start;
-
-	pm_power_off = do_msm_poweroff;
-	restart_nb.notifier_call = do_msm_restart;
-	restart_nb.priority = 200;
-	register_restart_handler(&restart_nb);
+	if (!qcom_scm_is_available())
+		return -EPROBE_DEFER;
 
 	nvmem_cell = devm_nvmem_cell_get(dev, "restart_reason");
 	if (PTR_ERR(nvmem_cell) == -EPROBE_DEFER)
@@ -570,11 +553,24 @@ static int msm_restart_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (qcom_scm_is_available()) {
-		set_dload_mode(download_mode);
-		if (!download_mode)
-			qcom_scm_disable_sdi();
-	}
+	mem = platform_get_resource_byname(pdev, IORESOURCE_MEM, "pshold-base");
+	msm_ps_hold = devm_ioremap_resource(dev, mem);
+	if (IS_ERR(msm_ps_hold))
+		return PTR_ERR(msm_ps_hold);
+
+	mem = platform_get_resource_byname(pdev, IORESOURCE_MEM,
+					   "tcsr-boot-misc-detect");
+	if (mem)
+		tcsr_boot_misc_detect = mem->start;
+
+	pm_power_off = do_msm_poweroff;
+	restart_nb.notifier_call = do_msm_restart;
+	restart_nb.priority = 200;
+	register_restart_handler(&restart_nb);
+
+	set_dload_mode(download_mode);
+	if (!download_mode)
+		qcom_scm_disable_sdi();
 
 	force_warm_reboot = of_property_read_bool(dev->of_node,
 						"qcom,force-warm-reboot");
