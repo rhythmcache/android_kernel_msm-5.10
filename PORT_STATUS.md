@@ -4,8 +4,8 @@
 - **Active Working Slot**: Slot B (`5.4.302~Vector/0b200678`)
 - **Test Slot**: Slot A
 - **Latest Commits Pushed**:
-  - `1d69a506e223`: `msm-poweroff: register pshold restart handler unconditionally before SCM`
-  - `b8808d8b19ea`: `veux.config: disable USB_DUMMY_HCD and UBSAN_TRAP, upload vmlinux/System.map`
+  - `9320790a5bbe`: `veux.config: disable USB_DUMMY_HCD and CONFIG_UBSAN matching Vector 5.4` [Boot candidate, not diagnostic: UBSAN and USB_DUMMY_HCD disabled, do not use to symbolize old crashes]
+  - `9af300b6acab`: `Revert "msm-poweroff: register pshold restart handler unconditionally before SCM"`
 
 ## IMPORTANT TESTING & HARDWARE RULES
 - **Forced Reboots**: Must ALWAYS use a **Power-only long press** (~10-15s). Do NOT press any volume buttons. (Fastboot mode was entered previously after repeated failed boots; the exact cause is unverified, but keeping hands off volume keys ensures recovery/bootloader combos are never triggered).
@@ -45,10 +45,11 @@
 ### Run 3 Setup & Hardening:
 1. **Revert PS_HOLD change (`1d69a506e223` reverted)**:
    - Reverted `1d69a506e223` to keep `msm-poweroff.c` strictly identical to working VectorKernel base (plus the verified `if (!qcom_scm_is_available()) return -EPROBE_DEFER;` guard from `f746b6fde58d`).
-   - PSCI warm reset remains the primary reset path (preserving pstore/ramoops across reboots), backed by `qcom_soc_wdt` (priority 255).
+   - PSCI warm reset remains the primary reset path. Note: the hypothesis that PS_HOLD hard reset wipes pstore is an unverified hypothesis, not an established finding, but avoiding untested changes to the reset path keeps variables controlled.
 2. **Align Sanitizers with Vector 5.4**:
    - Disabled `CONFIG_USB_DUMMY_HCD`: emulated dummy USB host controller is unnecessary on real hardware.
    - Disabled `CONFIG_UBSAN` entirely (`# CONFIG_UBSAN is not set`), matching Vector 5.4 defconfig.
    - Note: In 5.10 GKI, `CONFIG_UBSAN_LOCAL_BOUNDS` has no runtime logging handler and strictly traps. Disabling UBSAN eliminates false positive trap instructions while keeping `CONFIG_CFI_CLANG=y`.
-3. **CI Artifacts**:
-   - `vmlinux` and `System.map` are uploaded as build artifacts for full offline symbolization.
+3. **CI Artifacts & Build Classification**:
+   - Commit `9320790a5bbe` is designated as a **boot candidate, not diagnostic**. Because UBSAN and dummy_hcd are disabled, its vmlinux cannot be used to symbolize the Test 2 crash.
+   - For file:line symbolization of the Test 2 crash, a separate unchanged build of commit `f746b6fde58d` with vmlinux/System.map uploaded must be used.
