@@ -143,16 +143,24 @@ jobs:
           path: build_logs/*
           retention-days: 14
 
-      - name: Upload Built Images (if produced)
+      - name: Upload Kernel Image & DTBs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kernel-images-5.10-${{ env.SHORT_SHA }}
           path: |
             out/arch/arm64/boot/Image
-            out/vmlinux
             out/System.map
             out/arch/arm64/boot/dts/vendor/xiaomi/veux*.dtb*
             out/arch/arm64/boot/dts/vendor/qcom/blair*.dtb*
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Upload vmlinux Debug Binary (Large)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmlinux-debug-5.10-${{ env.SHORT_SHA }}
+          path: out/vmlinux
+          if-no-files-found: ignore
+          retention-days: 3
