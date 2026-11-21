@@ -3437,55 +3437,7 @@
 	regulator-max-microvolt = <3544000>;
 };
 
-&gcc_camss_top_gdsc {
-	status = "ok";
-};
-
 &gcc_ufs_phy_gdsc {
-	status = "ok";
-};
-
-&gcc_usb30_prim_gdsc {
-	status = "ok";
-};
-
-&gcc_vcodec0_gdsc {
-	qcom,support-hw-trigger;
-	status = "ok";
-};
-
-&gcc_venus_gdsc {
-	status = "ok";
-};
-
-&hlos1_vote_mm_snoc_mmu_tbu_rt_gdsc {
-	status = "ok";
-};
-
-&hlos1_vote_mm_snoc_mmu_tbu_nrt_gdsc {
-	status = "ok";
-};
-
-&hlos1_vote_turing_mmu_tbu1_gdsc {
-	status = "ok";
-};
-
-&hlos1_vote_turing_mmu_tbu0_gdsc {
-	status = "ok";
-};
-
-&mdss_core_gdsc {
-	qcom,support-hw-trigger;
-	status = "ok";
-};
-
-&gpu_cx_gdsc {
-	parent-supply = <&S2E_LEVEL>;
-	status = "ok";
-};
-
-&gpu_gx_gdsc {
-	parent-supply = <&S8A_LEVEL>;
 	status = "ok";
 };
 
