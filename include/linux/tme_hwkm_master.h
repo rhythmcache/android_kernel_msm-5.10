@@ -113,8 +113,16 @@ uint32_t tme_hwkm_master_importkey(uint32_t key_id,
  *
  *  @return  0 if successful, error code otherwise.
  */
+#if IS_ENABLED(CONFIG_MSM_TMECOM_QMP)
 uint32_t tme_hwkm_master_broadcast_transportkey(
 		struct tme_ext_err_info *err_info);
+#else
+static inline uint32_t tme_hwkm_master_broadcast_transportkey(
+		struct tme_ext_err_info *err_info)
+{
+	return 0;
+}
+#endif /* CONFIG_MSM_TMECOM_QMP */
 
 #endif /* _TME_HWKM_MASTER_H_ */
 

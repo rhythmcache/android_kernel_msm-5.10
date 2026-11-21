@@ -112,6 +112,8 @@ struct mem_buf_alloc_relinquish {
 
 /* Public definitions */
 
+#if IS_ENABLED(CONFIG_QCOM_MEM_BUF)
+
 /* Used to obtain the underlying vmperm struct of a DMA-BUF */
 struct mem_buf_vmperm *to_mem_buf_vmperm(struct dma_buf *dmabuf);
 
@@ -129,6 +131,33 @@ typedef int (*mem_buf_dma_buf_destructor)(void *dtor_data);
 int mem_buf_dma_buf_set_destructor(struct dma_buf *dmabuf,
 				   mem_buf_dma_buf_destructor dtor,
 				   void *dtor_data);
+#else
+
+typedef int (*mem_buf_dma_buf_destructor)(void *dtor_data);
+
+static inline struct mem_buf_vmperm *to_mem_buf_vmperm(struct dma_buf *dmabuf)
+{
+	return NULL;
+}
+
+static inline bool mem_buf_dma_buf_exclusive_owner(struct dma_buf *dmabuf)
+{
+	return true;
+}
+
+static inline int mem_buf_dma_buf_copy_vmperm(struct dma_buf *dmabuf, int **vmids,
+		int **perms, int *nr_acl_entries)
+{
+	return -ENODEV;
+}
+
+static inline int mem_buf_dma_buf_set_destructor(struct dma_buf *dmabuf,
+				   mem_buf_dma_buf_destructor dtor,
+				   void *dtor_data)
+{
+	return 0;
+}
+#endif /* CONFIG_QCOM_MEM_BUF */
 
 /**
  * struct mem_buf_allocation_data - Data structure that contains information
