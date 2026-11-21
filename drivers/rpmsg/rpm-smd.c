@@ -1609,6 +1609,8 @@ static int qcom_smd_rpm_probe(struct rpmsg_device *rpdev)
 
 skip_init:
 	probe_status = of_platform_populate(p, NULL, NULL, &rpdev->dev);
+	dev_info(&rpdev->dev, "%s: of_platform_populate probe_status=%d\n",
+		__func__, probe_status);
 
 	if (standalone)
 		pr_info("RPM running in standalone mode\n");

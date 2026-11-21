@@ -3300,7 +3300,7 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 		 * In that case we would like to return EPROBE_DEFER code.
 		 */
 		err = -EPROBE_DEFER;
-		dev_warn(dev, "%s: required phy device. hasn't probed yet. err = %d\n",
+		dev_err(dev, "%s: required phy device hasn't probed yet. err = %d\n",
 			__func__, err);
 		goto out_variant_clear;
 	} else if (IS_ERR(host->generic_phy)) {
@@ -3317,14 +3317,15 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 						     GPIOD_OUT_HIGH);
 	if (IS_ERR(host->device_reset)) {
 		err = PTR_ERR(host->device_reset);
-		if (err != -EPROBE_DEFER)
-			dev_err(dev, "failed to acquire reset gpio: %d\n", err);
+		dev_err(dev, "failed to acquire reset gpio: %d\n", err);
 		goto out_variant_clear;
 	}
 
 	err = ufs_qcom_bus_register(host);
-	if (err)
+	if (err) {
+		dev_err(dev, "%s: ufs_qcom_bus_register failed: %d\n", __func__, err);
 		goto out_variant_clear;
+	}
 
 	ufs_qcom_get_controller_revision(hba, &host->hw_ver.major,
 		&host->hw_ver.minor, &host->hw_ver.step);
@@ -3362,6 +3363,10 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 	 */
 	err = ufs_qcom_parse_reg_info(host, "qcom,vddp-ref-clk",
 				      &host->vddp_ref_clk);
+	if (err) {
+		dev_err(dev, "%s: parse qcom,vddp-ref-clk failed: %d\n", __func__, err);
+		goto out_variant_clear;
+	}
 
 	err = phy_init(host->generic_phy);
 	if (err) {
@@ -3382,6 +3387,10 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 
 	err = ufs_qcom_parse_reg_info(host, "qcom,vccq-parent",
 				      &host->vccq_parent);
+	if (err) {
+		dev_err(dev, "%s: parse qcom,vccq-parent failed: %d\n", __func__, err);
+		goto out_disable_vddp;
+	}
 	if (host->vccq_parent) {
 		err = ufs_qcom_enable_vreg(dev, host->vccq_parent);
 		if (err) {
@@ -3397,8 +3406,10 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 	}
 
 	err = ufs_qcom_init_lane_clks(host);
-	if (err)
+	if (err) {
+		dev_err(dev, "%s: ufs_qcom_init_lane_clks failed: %d\n", __func__, err);
 		goto out_disable_vccq_parent;
+	}
 
 	ufs_qcom_parse_pm_level(hba);
 	ufs_qcom_parse_limits(host);
@@ -3413,8 +3424,10 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 	ufs_qcom_advertise_quirks(hba);
 
 	err = ufs_qcom_ice_init(host);
-	if (err)
+	if (err) {
+		dev_err(dev, "%s: ufs_qcom_ice_init failed: %d\n", __func__, err);
 		goto out_variant_clear;
+	}
 
 	/*
 	 * Instantiate crypto capabilities for wrapped keys.

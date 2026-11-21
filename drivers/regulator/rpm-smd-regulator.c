@@ -1853,6 +1853,9 @@ static int rpm_vreg_resource_probe(struct platform_device *pdev)
 		if (rc != -EPROBE_DEFER)
 			dev_err(dev, "%s: failed to create active RPM handle, rc=%d\n",
 				__func__, rc);
+		else
+			dev_info(dev, "%s: deferring on active handle %s.%u\n",
+				__func__, rpm_vreg->resource_name, rpm_vreg->resource_id);
 		goto fail_free_vreg;
 	}
 
@@ -1863,6 +1866,9 @@ static int rpm_vreg_resource_probe(struct platform_device *pdev)
 		if (rc != -EPROBE_DEFER)
 			dev_err(dev, "%s: failed to create sleep RPM handle, rc=%d\n",
 				__func__, rc);
+		else
+			dev_info(dev, "%s: deferring on sleep handle %s.%u\n",
+				__func__, rpm_vreg->resource_name, rpm_vreg->resource_id);
 		goto fail_free_handle_active;
 	}
 

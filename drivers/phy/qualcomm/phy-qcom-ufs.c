@@ -348,14 +348,17 @@ int ufs_qcom_phy_init_vregulators(struct ufs_qcom_phy *phy_common)
 
 	err = ufs_qcom_phy_init_vreg(phy_common->dev, &phy_common->vdda_pll,
 		"vdda-pll");
-	if (err)
+	if (err) {
+		dev_err(phy_common->dev, "%s: vdda-pll init failed, err=%d\n", __func__, err);
 		goto out;
+	}
 
 	err = ufs_qcom_phy_init_vreg(phy_common->dev, &phy_common->vdda_phy,
 		"vdda-phy");
-
-	if (err)
+	if (err) {
+		dev_err(phy_common->dev, "%s: vdda-phy init failed, err=%d\n", __func__, err);
 		goto out;
+	}
 
 	ufs_qcom_phy_init_vreg(phy_common->dev, &phy_common->vddp_ref_clk,
 				     "vddp-ref-clk");
