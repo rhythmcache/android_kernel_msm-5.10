@@ -3437,9 +3437,7 @@
 	regulator-max-microvolt = <3544000>;
 };
 
-&gcc_ufs_phy_gdsc {
-	status = "ok";
-};
+
 
 &qupv3_se1_4uart {
 	status = "ok";
