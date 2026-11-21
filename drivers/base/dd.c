@@ -278,23 +278,12 @@ __setup("bringup_panic_secs=", bringup_panic_secs_setup);
 
 static void bringup_watchdog_timer_func(struct timer_list *t)
 {
-	struct device_private *p;
-
 	pr_emerg("========================================\n");
 	pr_emerg("BRINGUP TIMEOUT: %d seconds reached!\n", bringup_panic_secs);
 	pr_emerg("========================================\n");
 
 	pr_emerg("Dumping all task states...\n");
 	show_state();
-
-	if (mutex_trylock(&deferred_probe_mutex)) {
-		pr_emerg("Dumping deferred probe pending list...\n");
-		list_for_each_entry(p, &deferred_probe_pending_list, deferred_probe)
-			dev_info(p->device, "deferred probe pending (watchdog)\n");
-		mutex_unlock(&deferred_probe_mutex);
-	} else {
-		pr_emerg("deferred_probe_mutex held, skipping deferred probe list dump\n");
-	}
 
 	panic("bringup timeout");
 }
