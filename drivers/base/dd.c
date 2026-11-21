@@ -28,6 +28,8 @@
 #include <linux/pm_runtime.h>
 #include <linux/pinctrl/devinfo.h>
 #include <linux/slab.h>
+#include <linux/sched/debug.h>
+#include <linux/timer.h>
 
 #include "base.h"
 #include "power/power.h"
@@ -260,6 +262,53 @@ static int __init deferred_probe_timeout_setup(char *str)
 	return 1;
 }
 __setup("deferred_probe_timeout=", deferred_probe_timeout_setup);
+
+static int bringup_panic_secs;
+static struct timer_list bringup_watchdog_timer;
+
+static int __init bringup_panic_secs_setup(char *str)
+{
+	int secs;
+
+	if (!kstrtoint(str, 10, &secs))
+		bringup_panic_secs = secs;
+	return 1;
+}
+__setup("bringup_panic_secs=", bringup_panic_secs_setup);
+
+static void bringup_watchdog_timer_func(struct timer_list *t)
+{
+	struct device_private *p;
+
+	pr_emerg("========================================\n");
+	pr_emerg("BRINGUP TIMEOUT: %d seconds reached!\n", bringup_panic_secs);
+	pr_emerg("========================================\n");
+
+	pr_emerg("Dumping all task states...\n");
+	show_state();
+
+	if (mutex_trylock(&deferred_probe_mutex)) {
+		pr_emerg("Dumping deferred probe pending list...\n");
+		list_for_each_entry(p, &deferred_probe_pending_list, deferred_probe)
+			dev_info(p->device, "deferred probe pending (watchdog)\n");
+		mutex_unlock(&deferred_probe_mutex);
+	} else {
+		pr_emerg("deferred_probe_mutex held, skipping deferred probe list dump\n");
+	}
+
+	panic("bringup timeout");
+}
+
+static int __init bringup_watchdog_init(void)
+{
+	if (bringup_panic_secs > 0) {
+		pr_info("Starting bring-up watchdog timer (%d seconds)\n", bringup_panic_secs);
+		timer_setup(&bringup_watchdog_timer, bringup_watchdog_timer_func, 0);
+		mod_timer(&bringup_watchdog_timer, jiffies + bringup_panic_secs * HZ);
+	}
+	return 0;
+}
+core_initcall(bringup_watchdog_init);
 
 /**
  * driver_deferred_probe_check_state() - Check deferred probe state
