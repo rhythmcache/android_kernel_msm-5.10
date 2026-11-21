@@ -1608,6 +1608,7 @@ static int qcom_smd_rpm_probe(struct rpmsg_device *rpdev)
 	spin_lock_init(&msm_rpm_data.smd_lock_read);
 
 skip_init:
+	dev_info(&rpdev->dev, "%s: calling of_platform_populate\n", __func__);
 	probe_status = of_platform_populate(p, NULL, NULL, &rpdev->dev);
 	dev_info(&rpdev->dev, "%s: of_platform_populate probe_status=%d\n",
 		__func__, probe_status);

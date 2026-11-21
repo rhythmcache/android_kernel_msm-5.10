@@ -3363,10 +3363,8 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 	 */
 	err = ufs_qcom_parse_reg_info(host, "qcom,vddp-ref-clk",
 				      &host->vddp_ref_clk);
-	if (err) {
+	if (err)
 		dev_err(dev, "%s: parse qcom,vddp-ref-clk failed: %d\n", __func__, err);
-		goto out_variant_clear;
-	}
 
 	err = phy_init(host->generic_phy);
 	if (err) {
@@ -3387,10 +3385,8 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 
 	err = ufs_qcom_parse_reg_info(host, "qcom,vccq-parent",
 				      &host->vccq_parent);
-	if (err) {
+	if (err)
 		dev_err(dev, "%s: parse qcom,vccq-parent failed: %d\n", __func__, err);
-		goto out_disable_vddp;
-	}
 	if (host->vccq_parent) {
 		err = ufs_qcom_enable_vreg(dev, host->vccq_parent);
 		if (err) {
