@@ -305,14 +305,15 @@ static int glink_rpm_probe(struct platform_device *pdev)
 	if (IS_ERR(glink))
 		return PTR_ERR(glink);
 
+	platform_set_drvdata(pdev, glink);
+
 	ret = qcom_glink_native_start(glink);
 	if (ret) {
 		dev_err(dev, "failed to start glink: %d\n", ret);
 		qcom_glink_native_remove(glink);
+		platform_set_drvdata(pdev, NULL);
 		return ret;
 	}
-
-	platform_set_drvdata(pdev, glink);
 
 	return 0;
 }
