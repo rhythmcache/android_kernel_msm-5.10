@@ -1168,6 +1168,16 @@ static int platform_match(struct device *dev, struct device_driver *drv)
 	if (pdrv->id_table)
 		return platform_match_id(pdrv->id_table, pdev) != NULL;
 
+	/* Diagnostic check for missing platform_device name */
+	if (!pdev->name) {
+		pr_err("platform_match: NULL pdev->name! dev_name=%s of_node=%pOF parent=%s\n",
+		       dev_name(dev) ? dev_name(dev) : "<none>",
+		       dev->of_node,
+		       dev->parent ? dev_name(dev->parent) : "<none>");
+		WARN_ON_ONCE(1);
+		return 0;
+	}
+
 	/* fall-back to driver name match */
 	return (strcmp(pdev->name, drv->name) == 0);
 }

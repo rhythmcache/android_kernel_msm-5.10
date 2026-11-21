@@ -3013,6 +3013,7 @@
 		qcom,disk-encrypt-pipe-pair = <2>;
 		qcom,support-fde;
 		qcom,fde-key-size;
+		qcom,no-clock-support;
 		qcom,appsbl-qseecom-support;
 		qcom,commonlib64-loaded-by-uefi;
 		interconnect-names = "data_path";
