@@ -58,6 +58,11 @@
 #define MAKE_ION_ALLOC_DMA_READY 0
 #endif
 
+static inline bool dev_is_dma_coherent_hint_cached(struct device *dev)
+{
+	return false;
+}
+
 #define to_msm_ion_heap(x) container_of(x, struct msm_ion_heap, ion_heap)
 
 /**
