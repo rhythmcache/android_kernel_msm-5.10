@@ -77,12 +77,12 @@ static int ice_wait_bist_status(void __iomem *ice_mmio)
 
 	for (count = 0; count < QTI_ICE_MAX_BIST_CHECK_COUNT; count++) {
 		regval = ice_readl(ice_mmio, ICE_REGS_BIST_STATUS);
-		if (!(regval & QTI_ICE_BIST_STATUS_MASK))
+		if (!(regval & ICE_BIST_STATUS_MASK))
 			break;
 		udelay(50);
 	}
 
-	if (regval & QTI_ICE_BIST_STATUS_MASK) {
+	if (regval & ICE_BIST_STATUS_MASK) {
 		pr_err("%s: Error in BIST status 0x%x\n", __func__, regval);
 		return -ETIMEDOUT;
 	}
