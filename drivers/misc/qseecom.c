@@ -484,6 +484,8 @@ static int __qseecom_scm_call2_locked(uint32_t smc_id, struct qseecom_scm_desc *
 
 	do {
 		ret = qcom_scm_qseecom_call(smc_id, desc, false);
+		if (ret || (desc && desc->ret[0]))
+			pr_err("scm_call smc_id=0x%x ret=%d desc_ret=0x%llx\n", smc_id, ret, desc ? desc->ret[0] : 0);
 		if ((ret == -EBUSY) || (desc && (desc->ret[0] == -QSEE_RESULT_FAIL_APP_BUSY))) {
 			mutex_unlock(&app_access_lock);
 			msleep(QSEECOM_SCM_EBUSY_WAIT_MS);
@@ -1272,6 +1274,7 @@ static int qseecom_create_bridge_for_secbuf(int ion_fd, struct dma_buf *dmabuf,
 	uint32_t *perms_list;
 	uint32_t nelems = 0;
 	struct scatterlist *sg = sgt->sgl;
+	bool is_exclusive_owner = false;
 
 	if (!qtee_shmbridge_is_enabled())
 		return 0;
@@ -1281,12 +1284,14 @@ static int qseecom_create_bridge_for_secbuf(int ion_fd, struct dma_buf *dmabuf,
 
 	ret = qtee_shmbridge_query(phys);
 	if (ret) {
-		pr_debug("bridge exists\n");
+		pr_err("secbuf bridge exists for phys 0x%pa\n", &phys);
 		return 0;
 	}
 
-	if (mem_buf_dma_buf_exclusive_owner(dmabuf) || (sgt->nents != 1)) {
-		pr_debug("just create bridge for contiguous secure buf\n");
+	is_exclusive_owner = mem_buf_dma_buf_exclusive_owner(dmabuf);
+	if (is_exclusive_owner || (sgt->nents != 1)) {
+		pr_err("secbuf bridge skip: excl_owner=%d nents=%d\n",
+		       is_exclusive_owner, sgt->nents);
 		return 0;
 	}
 
@@ -1306,7 +1311,8 @@ static int qseecom_create_bridge_for_secbuf(int ion_fd, struct dma_buf *dmabuf,
 		goto exit;
 	}
 
-	pr_debug("created shm bridge %lld\n", handle);
+	pr_err("created shm bridge handle=%lld for phys 0x%pa size=%zu\n",
+	       handle, &phys, size);
 	mem_buf_dma_buf_set_destructor(dmabuf, qseecom_destroy_bridge_callback,
 			       (void *)handle);
 
@@ -2922,7 +2928,8 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		ret = qseecom_scm_call(SCM_SVC_TZSCHEDULER, 1, cmd_buf,
 			cmd_len, &resp, sizeof(resp));
 		if (ret) {
-			pr_err("scm_call to load app failed\n");
+			pr_err("scm_call to load app %s failed ret=%d\n",
+			       load_img_req.img_name, ret);
 			ret = -EINVAL;
 			goto loadapp_err;
 		}
@@ -2932,6 +2939,9 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 			pr_err("cache operation failed %d\n", ret);
 			goto loadapp_err;
 		}
+
+		pr_err("load app %s scm_call returned resp.result=%d resp.data=%d\n",
+		       load_img_req.img_name, resp.result, resp.data);
 
 		do {
 			if (resp.result == QSEOS_RESULT_FAILURE) {
@@ -7693,6 +7703,7 @@ long qseecom_ioctl(struct file *file,
 	case QSEECOM_IOCTL_SEND_CMD_REQ: {
 		/* Only one client allowed here at a time */
 		mutex_lock(&app_access_lock);
+		pr_err("IOCTL SEND_CMD_REQ: pid=%d comm=%s app_id=%d\n", current->pid, current->comm, data->client.app_id);
 		if ((data->client.app_id == 0) ||
 			(data->type != QSEECOM_CLIENT_APP)) {
 			pr_err("send cmd req: invalid handle (%d) app_id(%d)\n",
@@ -7891,13 +7902,15 @@ long qseecom_ioctl(struct file *file,
 			break;
 		}
 		data->type = QSEECOM_CLIENT_APP;
-		pr_debug("LOAD_APP_REQ: qseecom_addr = 0x%pK\n", data);
+		pr_err("IOCTL LOAD_APP_REQ enter: pid=%d comm=%s qseecom_addr=0x%pK\n", current->pid, current->comm, data);
 		atomic_inc(&data->ioctl_count);
 		ret = qseecom_load_app(data, argp);
 		atomic_dec(&data->ioctl_count);
 		mutex_unlock(&app_access_lock);
 		if (ret)
-			pr_err("failed load_app request: %d\n", ret);
+			pr_err("IOCTL LOAD_APP_REQ failed ret: %d\n", ret);
+		else
+			pr_err("IOCTL LOAD_APP_REQ success app_id: %d\n", data->client.app_id);
 		__wakeup_unload_app_kthread();
 		break;
 	}
@@ -8062,8 +8075,8 @@ long qseecom_ioctl(struct file *file,
 			break;
 		}
 		data->type = QSEECOM_CLIENT_APP;
+		pr_err("IOCTL APP_LOADED_QUERY_REQ: pid=%d comm=%s\n", current->pid, current->comm);
 		atomic_inc(&data->ioctl_count);
-		pr_debug("APP_LOAD_QUERY: qseecom_addr = 0x%pK\n", data);
 		ret = qseecom_query_app_loaded(data, argp);
 		atomic_dec(&data->ioctl_count);
 		mutex_unlock(&app_access_lock);
@@ -8408,6 +8421,7 @@ static int qseecom_open(struct inode *inode, struct file *file)
 	int ret = 0;
 	struct qseecom_dev_handle *data;
 
+	pr_err("qseecom_open: pid=%d comm=%s\n", current->pid, current->comm);
 	data = kzalloc(sizeof(*data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
