@@ -141,7 +141,7 @@ static const struct file_operations msm_ion_debug_heap_fops = {
 	.release = single_release,
 };
 
-static void msm_ion_debugfs_create_file(struct msm_ion_heap *msm_heap)
+static __maybe_unused void msm_ion_debugfs_create_file(struct msm_ion_heap *msm_heap)
 {
 	char debug_name[64];
 	struct dentry *debugfs_root;
@@ -161,7 +161,7 @@ static void msm_ion_debugfs_create_file(struct msm_ion_heap *msm_heap)
 	}
 }
 
-static struct ion_heap *ion_heap_create(struct ion_platform_heap *heap_data)
+static __maybe_unused struct ion_heap *ion_heap_create(struct ion_platform_heap *heap_data)
 {
 	struct ion_heap *heap = NULL;
 	int heap_type = heap_data->type;
@@ -383,7 +383,7 @@ static int msm_ion_populate_heap(struct device_node *node,
 	return ret;
 }
 
-static void free_pdata(const struct ion_platform_data *pdata)
+static __maybe_unused void free_pdata(const struct ion_platform_data *pdata)
 {
 	kfree(pdata->heaps);
 	kfree(pdata);
@@ -493,7 +493,7 @@ static int msm_ion_get_heap_dt_data(struct device_node *node,
 	return ret;
 }
 
-static struct ion_platform_data *msm_ion_parse_dt(struct platform_device *pdev)
+static __maybe_unused struct ion_platform_data *msm_ion_parse_dt(struct platform_device *pdev)
 {
 	struct ion_platform_data *pdata = NULL;
 	struct ion_platform_heap *heaps = NULL;
@@ -595,59 +595,9 @@ struct ion_heap *get_ion_heap(int heap_id)
 
 static int msm_ion_probe(struct platform_device *pdev)
 {
-	struct ion_platform_data *pdata;
-	int err = -1;
-	int i;
-
-	pdata = msm_ion_parse_dt(pdev);
-	if (IS_ERR(pdata)) {
-		status = ION_INIT_FAILURE;
-		return PTR_ERR(pdata);
-	}
-
-	num_heaps = pdata->nr;
-
-	heaps = kcalloc(pdata->nr, sizeof(struct ion_heap *), GFP_KERNEL);
-
-	if (!heaps) {
-		err = -ENOMEM;
-		goto out;
-	}
-
-	/* create the heaps as specified in the board file */
-	for (i = 0; i < num_heaps; i++) {
-		struct ion_platform_heap *heap_data = &pdata->heaps[i];
-
-		heaps[i] = ion_heap_create(heap_data);
-		if (IS_ERR_OR_NULL(heaps[i])) {
-			pr_err("msm_ion: FAILED to create heap %s (id_reg=0x%x, type=%d)\n",
-			       heap_data->name, heap_data->id, heap_data->type);
-			heaps[i] = 0;
-			continue;
-		} else {
-			pr_err("msm_ion: registered heap %s (id_reg=0x%x, assigned_id=%d, type=%d, base=%pa, size=%zx)\n",
-			       heap_data->name, heap_data->id, heaps[i]->id, heap_data->type,
-			       &heap_data->base, heap_data->size);
-		}
-
-		ion_device_add_heap(heaps[i]);
-		msm_ion_debugfs_create_file(to_msm_ion_heap(heaps[i]));
-	}
-	free_pdata(pdata);
-
-	/*
-	 * Publish the status at the end, so our interfaces know that they
-	 * can stop returning -EPROBE_DEFER.
-	 */
+	pr_err("msm_ion: BISECT STUB: msm_ion_probe returning 0 immediately (no heaps registered)\n");
 	status = ION_READY;
-
 	return 0;
-
-out:
-	kfree(heaps);
-	free_pdata(pdata);
-	status = ION_INIT_FAILURE;
-	return err;
 }
 
 static const struct of_device_id msm_ion_match_table[] = {
