@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - blair-port
+      - hwkm-ice-port
+      - 'bisect-*'
   workflow_dispatch:
 
 concurrency:
