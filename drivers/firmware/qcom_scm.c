@@ -1916,9 +1916,10 @@ int qcom_scm_config_set_ice_key(uint32_t index, phys_addr_t paddr, size_t size,
 				uint32_t cipher, unsigned int data_unit,
 				unsigned int ce)
 {
+	int ret;
 	struct qcom_scm_desc desc = {
 		.svc = QCOM_SCM_SVC_ES,
-		.cmd = QCOM_SCM_ES_CONFIG_SET_ICE_KEY_V2,
+		.cmd = QCOM_SCM_ES_CONFIG_SET_ICE_KEY,
 		.owner = ARM_SMCCC_OWNER_SIP,
 		.args[0] = index,
 		.args[1] = paddr,
@@ -1931,7 +1932,13 @@ int qcom_scm_config_set_ice_key(uint32_t index, phys_addr_t paddr, size_t size,
 					QCOM_SCM_VAL, QCOM_SCM_VAL),
 	};
 
-	return qcom_scm_call_noretry(__scm->dev, &desc, NULL);
+	pr_err("qcom_scm: config_set_ice_key start: slot=%u, cipher=%u, ce=%u\n",
+		index, cipher, ce);
+	mdelay(50);
+	ret = qcom_scm_call_noretry(__scm->dev, &desc, NULL);
+	pr_err("qcom_scm: config_set_ice_key returned rc=%d\n", ret);
+	mdelay(50);
+	return ret;
 }
 EXPORT_SYMBOL(qcom_scm_config_set_ice_key);
 

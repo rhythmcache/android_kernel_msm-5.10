@@ -1215,6 +1215,9 @@ int qti_hwkm_init(void __iomem *hwkm_slave_mmio_base)
 {
 	int ret = 0;
 
+	pr_err("qti_hwkm: init start, slave_mmio=%pK\n", hwkm_slave_mmio_base);
+	mdelay(50);
+
 	if (!hwkm_slave_mmio_base) {
 		pr_err("%s: HWKM ICE slave mmio invalid\n", __func__);
 		return -EINVAL;
@@ -1226,14 +1229,21 @@ int qti_hwkm_init(void __iomem *hwkm_slave_mmio_base)
 		pr_err("%s: Error in ICE init sequence %d\n", __func__, ret);
 		return ret;
 	}
+	pr_err("qti_hwkm: ice_init_sequence completed successfully\n");
+	mdelay(50);
 
 	ret = qti_hwkm_set_tpkey();
 	if (ret) {
 		pr_err("%s: Error setting ICE to receive %d\n", __func__, ret);
 		return ret;
 	}
+	pr_err("qti_hwkm: set_tpkey completed successfully\n");
+	mdelay(50);
+
 	/* Write memory barrier */
 	wmb();
+	pr_err("qti_hwkm: init completed successfully\n");
+	mdelay(50);
 	return ret;
 }
 EXPORT_SYMBOL(qti_hwkm_init);
@@ -1243,7 +1253,9 @@ static int qti_hwkm_probe(struct platform_device *pdev)
 	struct hwkm_device *hwkm_dev;
 	int ret = 0;
 
-	pr_debug("%s %d: HWKM probe start\n", __func__, __LINE__);
+	pr_err("qti_hwkm: probe start for 4440000.hwkm\n");
+	mdelay(50);
+
 	if (!pdev) {
 		pr_err("%s: Invalid platform_device passed\n", __func__);
 		return -EINVAL;
@@ -1274,6 +1286,10 @@ static int qti_hwkm_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_hwkm_dev;
 
+	pr_err("qti_hwkm: km_master mapped at %pK, initializing clocks\n",
+		hwkm_dev->km_base);
+	mdelay(50);
+
 	ret = qti_hwkm_init_clocks(hwkm_dev);
 	if (ret) {
 		pr_err("%s: Error initializing clocks %d\n", __func__, ret);
@@ -1283,6 +1299,10 @@ static int qti_hwkm_probe(struct platform_device *pdev)
 	hwkm_dev->is_hwkm_enabled = true;
 	km_device = hwkm_dev;
 	platform_set_drvdata(pdev, hwkm_dev);
+
+	pr_err("qti_hwkm: HWKM device initialized successfully (probe returned 1)\n");
+	mdelay(50);
+	return ret;
 
 	pr_debug("%s %d: HWKM probe ends\n", __func__, __LINE__);
 	return ret;
