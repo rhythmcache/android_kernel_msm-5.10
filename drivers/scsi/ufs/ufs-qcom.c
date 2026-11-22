@@ -521,13 +521,6 @@ static int ufs_qcom_host_reset(struct ufs_hba *hba)
 				 __func__, ret);
 
 	usleep_range(1000, 1100);
-	/*
-	 * The ice registers are also reset to default values after a ufs
-	 * host controller reset. Reset the ice internal software flags here
-	 * so that the ice hardware will be re-initialized properly in the
-	 * later part of the UFS host controller reset.
-	 */
-	ufs_qcom_ice_disable(host);
 
 	if (reenable_intr) {
 		enable_irq(hba->irq);
@@ -735,12 +728,6 @@ static int ufs_qcom_hce_enable_notify(struct ufs_hba *hba,
 		 * is initialized.
 		 */
 		err = ufs_qcom_enable_lane_clks(host);
-		/*
-		 * ICE enable needs to be called before ufshcd_crypto_enable
-		 * during resume as it is needed before reprogramming all
-		 * keys. So moving it to PRE_CHANGE.
-		 */
-		ufs_qcom_ice_enable(host);
 		break;
 	case POST_CHANGE:
 		/* check if UFS PHY moved from DISABLED to HIBERN8 */
@@ -1495,7 +1482,6 @@ static int ufs_qcom_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	ufs_qcom_log_str(host, "&,%d,%d,%d,%d,%d,%d\n",
 			pm_op, hba->rpm_lvl, hba->spm_lvl, hba->uic_link_state,
 			hba->curr_dev_pwr_mode, err);
-	ufs_qcom_ice_disable(host);
 
 	/* Refer ufs_qcom_cpufreq_dwork() */
 	mutex_lock(&host->cpufreq_lock);
@@ -3419,19 +3405,11 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 	ufs_qcom_set_caps(hba);
 	ufs_qcom_advertise_quirks(hba);
 
-	err = ufs_qcom_ice_init(host);
-	if (err) {
-		dev_err(dev, "%s: ufs_qcom_ice_init failed: %d\n", __func__, err);
-		goto out_variant_clear;
-	}
-
 	/*
-	 * Instantiate crypto capabilities for wrapped keys.
-	 * It is controlled by CONFIG_SCSI_UFS_CRYPTO_QTI.
-	 * If this is not defined, this API would return zero and
-	 * non-wrapped crypto capabilities will be instantiated.
+	 * Set the vendor specific ops needed for ICE.
+	 * Default implementation if the ops are not set.
 	 */
-	ufshcd_qti_hba_init_crypto_capabilities(hba);
+	ufshcd_crypto_qti_set_vops(hba);
 
 	ufs_qcom_set_bus_vote(hba, true);
 	/* enable the device ref clock for HS mode*/
@@ -4542,7 +4520,6 @@ static const struct ufs_hba_variant_ops ufs_hba_qcom_vops = {
 	.device_reset		= ufs_qcom_device_reset,
 	.config_scaling_param = ufs_qcom_config_scaling_param,
 	.setup_xfer_req         = ufs_qcom_qos,
-	.program_key		= ufs_qcom_ice_program_key,
 	.fixup_dev_quirks       = ufs_qcom_fixup_dev_quirks,
 };
 
