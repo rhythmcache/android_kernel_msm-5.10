@@ -526,6 +526,26 @@ static struct ion_platform_data *msm_ion_parse_dt(struct platform_device *pdev)
 	pdata->nr = num_heaps;
 
 	for_each_available_child_of_node(dt_node, node) {
+		val = of_get_address(node, 0, NULL, NULL);
+		if (!val) {
+			pr_err("%s: Unable to find reg key\n", __func__);
+			ret = -EINVAL;
+			goto free_heaps;
+		}
+		{
+			u32 heap_id = (u32)of_read_number(val, 1);
+
+			/* Bisect: only register system heap (id 25), qseecom (0x80), qseecom TA (0x02) */
+			if (heap_id != ION_SYSTEM_HEAP_ID &&
+			    heap_id != ION_QSECOM_HEAP_ID &&
+			    heap_id != ION_QSECOM_TA_HEAP_ID) {
+				pr_err("msm_ion: BISECT SKIP node %s (id_reg=0x%x)\n",
+				       node->name, heap_id);
+				continue;
+			}
+			pdata->heaps[idx].id = heap_id;
+		}
+
 		new_dev = of_platform_device_create(node, NULL, &pdev->dev);
 		if (!new_dev) {
 			pr_err("Failed to create device %s\n", node->name);
@@ -535,13 +555,6 @@ static struct ion_platform_data *msm_ion_parse_dt(struct platform_device *pdev)
 		of_dma_configure(&new_dev->dev, node, true);
 
 		pdata->heaps[idx].priv = &new_dev->dev;
-		val = of_get_address(node, 0, NULL, NULL);
-		if (!val) {
-			pr_err("%s: Unable to find reg key\n", __func__);
-			ret = -EINVAL;
-			goto free_heaps;
-		}
-		pdata->heaps[idx].id = (u32)of_read_number(val, 1);
 
 		ret = msm_ion_populate_heap(node, &pdata->heaps[idx]);
 		if (ret)
@@ -553,6 +566,7 @@ static struct ion_platform_data *msm_ion_parse_dt(struct platform_device *pdev)
 
 		++idx;
 	}
+	pdata->nr = idx;
 	return pdata;
 
 free_heaps:
