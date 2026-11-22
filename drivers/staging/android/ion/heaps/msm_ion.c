@@ -536,8 +536,9 @@ static __maybe_unused struct ion_platform_data *msm_ion_parse_dt(struct platform
 		{
 			u32 heap_id = (u32)of_read_number(val, 1);
 
-			/* Bisect Step B: only register system heap (id 25) */
-			if (heap_id != ION_SYSTEM_HEAP_ID) {
+			/* Bisect Step C: only register system heap (id 25) and qseecom (0x80) */
+			if (heap_id != ION_SYSTEM_HEAP_ID &&
+			    heap_id != ION_QSECOM_HEAP_ID) {
 				pr_err("msm_ion: BISECT SKIP node %s (id_reg=0x%x)\n",
 				       node->name, heap_id);
 				continue;
@@ -599,8 +600,9 @@ static int msm_ion_probe(struct platform_device *pdev)
 	int i;
 	int registered_count = 0;
 	bool heap25_registered = false;
+	bool heap_qseecom_registered = false;
 
-	pr_err("msm_ion: BISECT Step B: probe starting (system heap id 25 only)\n");
+	pr_err("msm_ion: BISECT Step C: probe starting (system heap id 25 + qseecom 0x80)\n");
 
 	pdata = msm_ion_parse_dt(pdev);
 	if (IS_ERR(pdata)) {
@@ -621,16 +623,21 @@ static int msm_ion_probe(struct platform_device *pdev)
 	/* create the heaps as specified in the board file */
 	for (i = 0; i < num_heaps; i++) {
 		struct ion_platform_heap *heap_data = &pdata->heaps[i];
+		struct device *dev = heap_data->priv;
+		struct cma *cma = dev ? dev->cma_area : NULL;
 
-		if (heap_data->id != ION_SYSTEM_HEAP_ID) {
-			pr_err("msm_ion: Step B skipping non-system heap %s (id=0x%x)\n",
+		if (heap_data->id != ION_SYSTEM_HEAP_ID &&
+		    heap_data->id != ION_QSECOM_HEAP_ID) {
+			pr_err("msm_ion: Step C skipping unselected heap %s (id=0x%x)\n",
 			       heap_data->name, heap_data->id);
 			heaps[i] = NULL;
 			continue;
 		}
 
-		pr_err("msm_ion: creating heap %s (id_reg=0x%x, type=%d)...\n",
-		       heap_data->name, heap_data->id, heap_data->type);
+		pr_err("msm_ion: creating heap %s (id_reg=0x%x, type=%d, DT base=%pa, size=0x%zx, cma=%s)...\n",
+		       heap_data->name, heap_data->id, heap_data->type,
+		       &heap_data->base, heap_data->size,
+		       cma ? cma_get_name(cma) : "none");
 
 		heaps[i] = ion_heap_create(heap_data);
 		if (IS_ERR_OR_NULL(heaps[i])) {
@@ -648,17 +655,21 @@ static int msm_ion_probe(struct platform_device *pdev)
 		msm_ion_debugfs_create_file(to_msm_ion_heap(heaps[i]));
 
 		registered_count++;
-		heap25_registered = true;
+		if (heap_data->id == ION_SYSTEM_HEAP_ID)
+			heap25_registered = true;
+		if (heap_data->id == ION_QSECOM_HEAP_ID)
+			heap_qseecom_registered = true;
 
-		pr_err("msm_ion: MARKER: heap id 25 registered successfully\n");
+		pr_err("msm_ion: MARKER: heap %s (id_reg=0x%x) registered successfully\n",
+		       heap_data->name, heap_data->id);
 		mdelay(50);
 	}
 	free_pdata(pdata);
 	pdata = NULL;
 
-	if (!heap25_registered) {
-		pr_err("msm_ion: MARKER: msm_ion_probe FAILED (heap 25 not registered, registered_count=%d)\n",
-		       registered_count);
+	if (!heap25_registered || !heap_qseecom_registered) {
+		pr_err("msm_ion: MARKER: msm_ion_probe FAILED (expected 2 heaps, registered_count=%d, sys=%d, qseecom=%d)\n",
+		       registered_count, heap25_registered, heap_qseecom_registered);
 		status = ION_INIT_FAILURE;
 		return -ENODEV;
 	}
