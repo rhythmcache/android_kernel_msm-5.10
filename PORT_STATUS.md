@@ -122,3 +122,21 @@
    - **Commit 1 (`ad1c6c0fea3d`)**: Added `include/linux/msm_ion.h`, embedded `struct msm_iommu_data iommu_data;` into `struct ion_buffer`.
    - **Commit 2 (`3cee65811ab1`)**: Ported MSM ION heap driver files from Vector 5.4 (`msm_ion.c`, `msm_ion_dma_buf.c`, `ion_msm_system_heap.c`, `ion_system_secure_heap.c`, `ion_carveout_heap.c`, `ion_cma_heap.c`, `ion_secure_util.c`, `ion_msm_page_pool.c`). Adapted `msm_ion_dma_buf.c` to 5.10 DMA-BUF architecture.
    - **Commit 3**: Added diagnostics for `ion_open`, `ion_alloc_fd`, and heap matching in `ion.c` / `ion_buffer.c`. Updated `veux.config` (`CONFIG_ION_MSM_HEAPS=y`, `CONFIG_QCOM_LAZY_MAPPING=y`, `CONFIG_ION_POOL_AUTO_REFILL=y`, `CONFIG_ION_POOL_FILL_MARK=100`, `# CONFIG_ION_CMA_HEAP is not set`). Removed dead `=m` from `holi_GKI.config`.
+
+---
+
+### Slot A Debug Guards (TEMPORARY - FOR DEBUGGING ONLY):
+> [!WARNING]
+> These guards exist solely for capturing kernel/userspace logs on Slot A bringup failures without entering Recovery or triggering persistent ABL boot loops. **REMOVE BEFORE FINAL PRODUCTION RELEASE.**
+
+1. **Read-Only Protection for `misc` Partition (`block/partitions/core.c`, `block/ioctl.c`)**:
+   - In `add_partition()`, when the partition name from GPT matches `"misc"`, `p->policy` is set to `1` (`bdev_read_only`).
+   - In `blkdev_roset()`, any attempt to clear read-only state via `ioctl(BLKROSET)` on `"misc"` is rejected with `-EPERM`.
+   - **Purpose**: Prevents Android userspace (`UserDataPreparer` / `RecoverySystem`) from writing `"boot-recovery"` into the Bootloader Control Block (BCB) on `/dev/block/by-name/misc` upon `init_user0` failure.
+   - **Scope**: Matches only the `"misc"` GPT partition name. Does not affect any other partition (`boot`, `userdata`, `metadata`, etc.).
+
+2. **Recovery Reboot Interception (`drivers/power/reset/msm-poweroff.c`)**:
+   - In `msm_restart_prepare(const char *cmd)`, when `cmd` contains `"recovery"`, the reboot reason is remapped from `0x77665502` (`PON_RESTART_REASON_RECOVERY`) to `0x77665501` (`PON_RESTART_REASON_UNKNOWN` / normal warm reboot), accompanied by a `pr_err` log.
+   - **Purpose**: Prevents Qualcomm ABL from redirecting the reboot into Recovery mode when userspace calls `PowerManager.reboot("recovery")`.
+   - Together with Guard 1, ABL treats failures as normal boot attempts, decrements `triesRemaining`, and falls back cleanly to Slot B, leaving the 5.10 console ramoops intact.
+

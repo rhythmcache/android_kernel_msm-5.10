@@ -403,6 +403,12 @@ static int blkdev_roset(struct block_device *bdev, fmode_t mode,
 	if (!capable(CAP_SYS_ADMIN))
 		return -EACCES;
 
+	if (bdev->bd_part && bdev->bd_part->info &&
+	    !strcmp(bdev->bd_part->info->volname, "misc")) {
+		pr_warn("block: slot A debug guard: rejecting BLKROSET on protected 'misc' partition\n");
+		return -EPERM;
+	}
+
 	ret = __blkdev_driver_ioctl(bdev, mode, cmd, arg);
 	if (!is_unrecognized_ioctl(ret))
 		return ret;

@@ -433,6 +433,11 @@ static struct hd_struct *add_partition(struct gendisk *disk, int partno,
 		}
 		memcpy(pinfo, info, sizeof(*info));
 		p->info = pinfo;
+		if (!strcmp(pinfo->volname, "misc")) {
+			p->policy = 1;
+			pr_warn("block: slot A debug guard: setting partition '%s' (p%d on %s) to READ-ONLY\n",
+				pinfo->volname, partno, disk->disk_name);
+		}
 	}
 
 	dname = dev_name(ddev);

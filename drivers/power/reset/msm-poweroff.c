@@ -436,8 +436,9 @@ static void msm_restart_prepare(const char *cmd)
 			reason = PON_RESTART_REASON_BOOTLOADER;
 			__raw_writel(0x77665500, restart_reason);
 		} else if (!strncmp(cmd, "recovery", 8)) {
-			reason = PON_RESTART_REASON_RECOVERY;
-			__raw_writel(0x77665502, restart_reason);
+			pr_err("msm-poweroff: intercepted recovery reboot request '%s', converting to normal warm reboot\n", cmd);
+			reason = PON_RESTART_REASON_UNKNOWN;
+			__raw_writel(0x77665501, restart_reason);
 		} else if (!strcmp(cmd, "rtc")) {
 			reason = PON_RESTART_REASON_RTC;
 			__raw_writel(0x77665503, restart_reason);
