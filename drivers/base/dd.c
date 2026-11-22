@@ -280,13 +280,11 @@ static void bringup_watchdog_timer_func(struct timer_list *t)
 {
 	pr_emerg("========================================\n");
 	pr_emerg("BRINGUP TIMEOUT: %d seconds reached!\n", bringup_panic_secs);
+	pr_emerg("saved_command_line: %s\n", saved_command_line ? saved_command_line : "<null>");
 	pr_emerg("========================================\n");
 
 	pr_emerg("Dumping uninterruptible (D-state) tasks...\n");
 	show_state_filter(TASK_UNINTERRUPTIBLE);
-
-	pr_emerg("Dumping all task states...\n");
-	show_state();
 
 	panic("bringup timeout");
 }
