@@ -52,13 +52,21 @@ static int ion_alloc_fd(size_t len, unsigned int heap_id_mask,
 	struct dma_buf *dmabuf;
 
 	dmabuf = ion_dmabuf_alloc(internal_dev, len, heap_id_mask, flags);
-	if (IS_ERR(dmabuf))
+	if (IS_ERR(dmabuf)) {
+		pr_err("ion: alloc_fd FAILED for %s (pid %d): len=%zu heap_id_mask=0x%x flags=0x%x ret=%ld\n",
+		       current->comm, current->pid, len, heap_id_mask, flags, PTR_ERR(dmabuf));
 		return PTR_ERR(dmabuf);
+	}
 
 	fd = dma_buf_fd(dmabuf, O_CLOEXEC);
-	if (fd < 0)
+	if (fd < 0) {
+		pr_err("ion: dma_buf_fd FAILED: fd=%d\n", fd);
 		dma_buf_put(dmabuf);
+		return fd;
+	}
 
+	pr_err("ion: alloc_fd SUCCESS for %s (pid %d): len=%zu heap_id_mask=0x%x flags=0x%x -> fd=%d\n",
+	       current->comm, current->pid, len, heap_id_mask, flags, fd);
 	return fd;
 }
 
@@ -218,8 +226,15 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	return ret;
 }
 
+static int ion_open(struct inode *inode, struct file *file)
+{
+	pr_err("ion: /dev/ion opened by %s (pid %d)\n", current->comm, current->pid);
+	return 0;
+}
+
 static const struct file_operations ion_fops = {
 	.owner          = THIS_MODULE,
+	.open           = ion_open,
 	.unlocked_ioctl = ion_ioctl,
 	.compat_ioctl	= compat_ptr_ioctl,
 };

@@ -102,3 +102,23 @@
 4. **Cmdline & Buffer Protection**:
    - Removed `initcall_debug` to prevent 256KB ramoops console ring buffer rollover during the 10s init wait.
    - Kept `fw_devlink=permissive deferred_probe_timeout=5 loglevel=8 ignore_loglevel panic=5 qcom_scm.download_mode=0`.
+
+---
+
+### Run 6 (QSEECOM, SHMBRIDGE & Watchdog Updates):
+1. **Probe Diagnostics & SHMBRIDGE Bridge Tracing**:
+   - Added detailed `pr_err` diagnostics across `qseecom.c` for SHMBRIDGE memory handles (`qsecom.align`, `qsecom_ta.align`).
+   - Converted inline early keymaster64 lookup to delayed work (15s after boot) to prevent stalling probe.
+2. **Watchdog Adjustment**:
+   - Maintained 45s stage-1 / 90s stage-2 timeout for userspace boot.
+
+---
+
+### Run 7 (MSM ION Port & Keymaster Resolution):
+1. **Root Cause Analysis**:
+   - `vendor.keymaster-4-1` calls `libQSEEComAPI.so`, which opens `/dev/ion` and allocates buffers using `ION_QSECOM_TA_HEAP_ID` (`0x2`) and `ION_QSECOM_HEAP_ID` (`0x80`).
+   - In 5.10 GKI, Qualcomm's `msm_ion.c` driver was missing; only generic system heap (id 0) was registered. Allocations failed with `-ENODEV`, leading to keymaster SIGABRT.
+2. **Implementation (Option a)**:
+   - **Commit 1 (`ad1c6c0fea3d`)**: Added `include/linux/msm_ion.h`, embedded `struct msm_iommu_data iommu_data;` into `struct ion_buffer`.
+   - **Commit 2 (`3cee65811ab1`)**: Ported MSM ION heap driver files from Vector 5.4 (`msm_ion.c`, `msm_ion_dma_buf.c`, `ion_msm_system_heap.c`, `ion_system_secure_heap.c`, `ion_carveout_heap.c`, `ion_cma_heap.c`, `ion_secure_util.c`, `ion_msm_page_pool.c`). Adapted `msm_ion_dma_buf.c` to 5.10 DMA-BUF architecture.
+   - **Commit 3**: Added diagnostics for `ion_open`, `ion_alloc_fd`, and heap matching in `ion.c` / `ion_buffer.c`. Updated `veux.config` (`CONFIG_ION_MSM_HEAPS=y`, `CONFIG_QCOM_LAZY_MAPPING=y`, `CONFIG_ION_POOL_AUTO_REFILL=y`, `CONFIG_ION_POOL_FILL_MARK=100`, `# CONFIG_ION_CMA_HEAP is not set`). Removed dead `=m` from `holi_GKI.config`.

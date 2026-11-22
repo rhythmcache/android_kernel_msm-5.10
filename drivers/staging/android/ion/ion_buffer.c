@@ -155,8 +155,18 @@ struct ion_buffer *ion_buffer_alloc(struct ion_device *dev, size_t len,
 		if (!((1 << heap->id) & heap_id_mask))
 			continue;
 		buffer = ion_buffer_create(heap, dev, len, flags);
-		if (!IS_ERR(buffer))
+		if (!IS_ERR(buffer)) {
+			pr_err("ion: buffer_alloc matched heap %s (id=%d, mask=0x%x) for mask 0x%x\n",
+			       heap->name, heap->id, (1 << heap->id), heap_id_mask);
 			break;
+		}
+	}
+	if (!buffer) {
+		pr_err("ion: buffer_alloc NO MATCH for heap_id_mask 0x%x! Available heaps:\n", heap_id_mask);
+		plist_for_each_entry(heap, &dev->heaps, node) {
+			pr_err("ion:   available heap: %s (id=%d, mask=0x%x)\n",
+			       heap->name, heap->id, (1 << heap->id));
+		}
 	}
 	up_read(&dev->lock);
 
