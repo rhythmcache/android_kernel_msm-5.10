@@ -131,22 +131,11 @@ int crypto_qti_init_crypto(const struct ice_mmio_data *mmio_data)
 		return err;
 	}
 
-#if IS_ENABLED(CONFIG_QTI_HW_KEY_MANAGER)
-	if (mmio_data->ice_hwkm_mmio) {
-		pr_info("crypto_qti_init_crypto: initializing HWKM slave at %pK\n",
-			mmio_data->ice_hwkm_mmio);
-		err = qti_hwkm_init(mmio_data->ice_hwkm_mmio);
-		if (err) {
-			pr_err("%s: qti_hwkm_init failed, err %d\n", __func__, err);
-			return err;
-		}
-	}
-#endif
-
 	/*
 	 * S2 (5.4 parity): Do NOT run low_power_and_optimization_enable
 	 * or ice_wait_bist_status at init time. 5.4 runs them exclusively
 	 * in crypto_qti_enable() when the controller is started.
+	 * HWKM slave init (qti_hwkm_init) is lazy on first keyslot program.
 	 */
 	pr_info("%s: ICE version and fuse checks passed successfully (S2 5.4 parity, BIST deferred, ice_step=%d)\n",
 		__func__, step);
