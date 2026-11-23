@@ -135,8 +135,29 @@
    - **Purpose**: Prevents Android userspace (`UserDataPreparer` / `RecoverySystem`) from writing `"boot-recovery"` into the Bootloader Control Block (BCB) on `/dev/block/by-name/misc` upon `init_user0` failure.
    - **Scope**: Matches only the `"misc"` GPT partition name. Does not affect any other partition (`boot`, `userdata`, `metadata`, etc.).
 
-2. **Recovery Reboot Interception (`drivers/power/reset/msm-poweroff.c`)**:
-   - In `msm_restart_prepare(const char *cmd)`, when `cmd` contains `"recovery"`, the reboot reason is remapped from `0x77665502` (`PON_RESTART_REASON_RECOVERY`) to `0x77665501` (`PON_RESTART_REASON_UNKNOWN` / normal warm reboot), accompanied by a `pr_err` log.
-   - **Purpose**: Prevents Qualcomm ABL from redirecting the reboot into Recovery mode when userspace calls `PowerManager.reboot("recovery")`.
+2. **Reboot Command Interception (`drivers/power/reset/msm-poweroff.c`)**:
+   - In `msm_restart_prepare(const char *cmd)`, any reboot command containing `"recovery"`, `"bootloader"`, or `"fastboot"` (via `strstr`, covering `"reboot,recovery"`, `"userrequested,recovery"`, `"reboot,bootloader"`, `"userrequested,bootloader"`, `"userrequested,fastboot"`, fastbootd) is intercepted and remapped to `0x77665501` (`PON_RESTART_REASON_UNKNOWN` / normal warm reboot), accompanied by a `pr_err` log.
+   - **Purpose**: Prevents Qualcomm ABL from redirecting the reboot into Recovery mode or Fastboot mode when userspace calls `PowerManager.reboot()`.
+   - **Crucial Side Effect**: This guard removes the bootloader reboot path entirely for Slot A test builds (`adb reboot bootloader` will not work on Slot A, but reboots normally). This is debug-only and must never reach the production kernel.
    - Together with Guard 1, ABL treats failures as normal boot attempts, decrements `triesRemaining`, and falls back cleanly to Slot B, leaving the 5.10 console ramoops intact.
+
+---
+
+### Mandatory Safe Slot A Test Procedure:
+> [!IMPORTANT]
+> Follow this procedure strictly on every Slot A test run to prevent accidental mode steering and ensure fallback:
+> 1. **Power-Only Normal Boot**: To boot Slot A normally, use a **short Power press**. Do NOT hold Power for 10–12 seconds (a 10–12s hold is a PMIC forced reset that consumes a boot retry without clean userspace teardown). **NEVER hold Volume Up or Volume Down.** (Holding Volume Up commands ABL in hardware to enter Recovery; holding Volume Down commands ABL to enter Fastboot).
+> 2. **During a Loop, Do Not Touch Phone for 5 Minutes**: Do not interrupt the boot loop manually. Allow the phone to execute its boot attempts and wait for ABL to automatically decrement the retry counter and fall back to Slot B.
+> 3. **If it ends in Fastboot**: This happens if ABL exhausts all retry counters across slots or if Volume Down was triggered. If stranded in fastboot, run `fastboot set_active b` from a host / connected phone (e.g. via Dioxamine) to return to Slot B.
+> 4. **Post-Run Log Harvest Routine**: Immediately after booting Slot B:
+>    - Harvest `/sys/fs/pstore/*` to `/sdcard/kernel-port/logs/`.
+>    - Report `vold`, `keystore2`, `keymaster`, `gatekeeper`, and `ion_alloc` lines around `init_user0`.
+>    - Verify slot flags (`IBootControl/default 4`, `sgdisk`) and check `misc` SHA256 against clean backup.
+
+> [!NOTE]
+> **What this guard CANNOT cover**:
+> - Hardware key presses during power-on (ABL evaluates Volume Up / Volume Down in hardware before loading the kernel).
+> - ABL entering Fastboot on its own when all boot attempts across all bootable slots are fully exhausted.
+> - "ABL only inspects IMEM, misc, and GPT" is the expected behavior based on CAF source code, not verified in proprietary ABL binary. If ABL still enters recovery or fastboot during a test, record exactly what happened.
+
 

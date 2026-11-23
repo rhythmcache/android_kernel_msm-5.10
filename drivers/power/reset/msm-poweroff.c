@@ -432,11 +432,8 @@ static void msm_restart_prepare(const char *cmd)
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
 
 	if (cmd != NULL) {
-		if (!strncmp(cmd, "bootloader", 10)) {
-			reason = PON_RESTART_REASON_BOOTLOADER;
-			__raw_writel(0x77665500, restart_reason);
-		} else if (!strncmp(cmd, "recovery", 8)) {
-			pr_err("msm-poweroff: intercepted recovery reboot request '%s', converting to normal warm reboot\n", cmd);
+		if (strstr(cmd, "bootloader") || strstr(cmd, "fastboot") || strstr(cmd, "recovery")) {
+			pr_err("msm-poweroff: slot A debug guard: intercepted reboot command '%s', converting to normal warm reboot\n", cmd);
 			reason = PON_RESTART_REASON_UNKNOWN;
 			__raw_writel(0x77665501, restart_reason);
 		} else if (!strcmp(cmd, "rtc")) {
