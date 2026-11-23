@@ -19,6 +19,7 @@
 #include <linux/of_address.h>
 #include <linux/qcom_scm.h>
 #include <linux/nvmem-consumer.h>
+#include <linux/kmsg_dump.h>
 
 #include <asm/cacheflush.h>
 #include <asm/system_misc.h>
