@@ -3405,16 +3405,24 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 	ufs_qcom_set_caps(hba);
 	ufs_qcom_advertise_quirks(hba);
 
-	/*
-	 * Set the vendor specific ops needed for ICE.
-	 * Default implementation if the ops are not set.
-	 */
-	ufshcd_crypto_qti_set_vops(hba);
-
 	ufs_qcom_set_bus_vote(hba, true);
 	/* enable the device ref clock for HS mode*/
 	if (ufshcd_is_hs_mode(&hba->pwr_info))
 		ufs_qcom_dev_ref_clk_ctrl(host, true);
+
+	/*
+	 * Instantiate crypto capabilities for wrapped keys.
+	 * It is controlled by CONFIG_SCSI_UFS_CRYPTO_QTI.
+	 */
+	err = ufshcd_qti_hba_init_crypto_capabilities(hba);
+	if (err) {
+		dev_err(dev, "%s: ufshcd_qti_hba_init_crypto_capabilities failed: %d\n",
+			__func__, err);
+		err = 0; /* continue, don't crash */
+	} else {
+		dev_info(dev, "%s: crypto capabilities initialized: features=0x%x, slots=%d\n",
+			 __func__, hba->ksm.features, hba->ksm.num_slots);
+	}
 
 	if (hba->dev->id < MAX_UFS_QCOM_HOSTS)
 		ufs_qcom_hosts[hba->dev->id] = host;
