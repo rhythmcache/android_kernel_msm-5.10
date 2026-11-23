@@ -504,6 +504,10 @@ static int do_msm_restart(struct notifier_block *unused, unsigned long action,
 {
 	const char *cmd = arg;
 
+	/* TEMPORARY CAPTURE HOOK: force clean kmsg dump to ramoops before restart unless already in panic */
+	if (!in_panic && !oops_in_progress)
+		kmsg_dump(KMSG_DUMP_PANIC);
+
 	pr_notice("Going down for restart now\n");
 
 	msm_restart_prepare(cmd);
