@@ -433,9 +433,17 @@ static void msm_restart_prepare(const char *cmd)
 
 	if (cmd != NULL) {
 		if (strstr(cmd, "bootloader") || strstr(cmd, "fastboot") || strstr(cmd, "recovery")) {
-			pr_err("msm-poweroff: slot A debug guard: intercepted reboot command '%s', converting to normal warm reboot\n", cmd);
+			static bool panic_once;
+
+			pr_err("msm-poweroff: slot A debug guard: intercepted reboot command '%s'\n", cmd);
 			reason = PON_RESTART_REASON_UNKNOWN;
 			__raw_writel(0x77665501, restart_reason);
+
+			if (!panic_once) {
+				panic_once = true;
+				panic_timeout = 5;
+				panic("Slot A debug guard: intercepted '%s' reboot -> triggering panic dump for pstore capture", cmd);
+			}
 		} else if (!strcmp(cmd, "rtc")) {
 			reason = PON_RESTART_REASON_RTC;
 			__raw_writel(0x77665503, restart_reason);

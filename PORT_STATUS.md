@@ -160,4 +160,24 @@
 > - ABL entering Fastboot on its own when all boot attempts across all bootable slots are fully exhausted.
 > - "ABL only inspects IMEM, misc, and GPT" is the expected behavior based on CAF source code, not verified in proprietary ABL binary. If ABL still enters recovery or fastboot during a test, record exactly what happened.
 
+---
+
+### Test Run: Commit `6e504a80cd39` (Real Write-Block Guard)
+- **First Test Run (Default 3 Retries via HAL)**:
+  - `misc` was write-blocked successfully (`dab260e1...` clean).
+  - 0 reboots into recovery occurred.
+  - ABL decremented tries to 0 and fell back to Slot B.
+  - On Slot B fallback, ramoops reported `found existing invalid buffer, size 235862, start 236886` and zapped the buffer. Note: the hypothesis of an interrupted mid-write race remains unconfirmed, as identical start/size values repeated across runs.
+- **Second Test Run (1 Retry Configured via sgdisk)**:
+  - `misc` SHA256: `dab260e16fbdca5bead00c05d234b40132149bbc2c34751cd606f97e5220e033` (clean).
+  - Fallback to Slot B succeeded in ~45s.
+  - Exact same invalid buffer values (`size 235862, start 236886`) reported.
+- **Panic Dump Capture Mechanism**:
+  - In `msm_restart_prepare()`, when a reboot request with target `recovery`, `bootloader`, or `fastboot` is intercepted on Slot A, the kernel sets `panic_timeout = 5` and calls `panic()` once.
+  - This invokes `kmsg_dump(KMSG_DUMP_PANIC)` to serialize full dmesg into `dmesg-ramoops-*` / `console-ramoops-N` with clean headers before executing emergency warm reboot back to ABL.
+
+
+
+
+
 
