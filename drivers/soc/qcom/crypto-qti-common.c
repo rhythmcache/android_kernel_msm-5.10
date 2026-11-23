@@ -16,19 +16,25 @@ static int ice_check_fuse_setting(void __iomem *ice_mmio)
 	uint32_t regval;
 	uint32_t version, major, minor;
 
+	pr_info("ice_check_fuse_setting: reading offset 0x%x (ICE_REGS_VERSION)\n", ICE_REGS_VERSION);
 	version = ice_readl(ice_mmio, ICE_REGS_VERSION);
 	major = (version & ICE_CORE_MAJOR_REV_MASK) >> ICE_CORE_MAJOR_REV;
 	minor = (version & ICE_CORE_MINOR_REV_MASK) >> ICE_CORE_MINOR_REV;
 
 	// Check fuse setting is not supported on ICE 3.2 onwards
-	if ((major == 0x03) && (minor >= 0x02))
+	if ((major == 0x03) && (minor >= 0x02)) {
+		pr_info("ice_check_fuse_setting: ICE 3.2+ detected, skipping fuse check\n");
 		return 0;
+	}
+
+	pr_info("ice_check_fuse_setting: reading offset 0x%x (ICE_REGS_FUSE_SETTING)\n", ICE_REGS_FUSE_SETTING);
 	regval = ice_readl(ice_mmio, ICE_REGS_FUSE_SETTING);
+	pr_info("ice_check_fuse_setting: read 0x%x\n", regval);
 	regval &= (ICE_FUSE_SETTING_MASK |
 		ICE_FORCE_HW_KEY0_SETTING_MASK |
 		ICE_FORCE_HW_KEY1_SETTING_MASK);
 	if (regval) {
-		pr_err("%s: Fuses are blown\n", __func__);
+		pr_err("%s: Fuses are blown (0x%x)\n", __func__, regval);
 		return -EIO;
 	}
 
@@ -39,10 +45,13 @@ static int ice_check_version(void __iomem *ice_mmio)
 {
 	uint32_t version, major, minor, step;
 
+	pr_info("ice_check_version: reading offset 0x%x (ICE_REGS_VERSION)\n", ICE_REGS_VERSION);
 	version = ice_readl(ice_mmio, ICE_REGS_VERSION);
 	major = (version & ICE_CORE_MAJOR_REV_MASK) >> ICE_CORE_MAJOR_REV;
 	minor = (version & ICE_CORE_MINOR_REV_MASK) >> ICE_CORE_MINOR_REV;
 	step = (version & ICE_CORE_STEP_REV_MASK) >> ICE_CORE_STEP_REV;
+
+	pr_info("ice_check_version: read 0x%08x -> v%d.%d.%d\n", version, major, minor, step);
 
 	if (major < ICE_CORE_CURRENT_MAJOR_VERSION) {
 		pr_err("%s: Unknown ICE device at %pK, rev %d.%d.%d\n",
@@ -113,13 +122,13 @@ int crypto_qti_init_crypto(const struct ice_mmio_data *mmio_data)
 		return err;
 	}
 
-	ice_low_power_and_optimization_enable(ice_mmio);
-
-	err = ice_wait_bist_status(ice_mmio);
-	if (err) {
-		pr_err("%s: BIST status failed, err %d\n", __func__, err);
-		return err;
-	}
+	/*
+	 * S2 (5.4 parity): Do NOT run low_power_and_optimization_enable
+	 * or ice_wait_bist_status at init time. 5.4 runs them exclusively
+	 * in crypto_qti_enable() when the controller is started.
+	 */
+	pr_info("%s: ICE version and fuse checks passed successfully (S2 5.4 parity, BIST deferred)\n",
+		__func__);
 
 	return 0;
 }

@@ -166,6 +166,8 @@ int ufshcd_qti_hba_init_crypto_capabilities(struct ufs_hba *hba)
 			dev_warn(hba->dev, "ufs_ice resource not found\n");
 			goto out;
 		}
+		dev_info(hba->dev, "Mapping ufs_ice: start=0x%llx end=0x%llx size=0x%llx\n",
+			 (u64)ice_res->start, (u64)ice_res->end, (u64)resource_size(ice_res));
 		host->ice_mmio = devm_ioremap_resource(hba->dev, ice_res);
 		if (IS_ERR(host->ice_mmio)) {
 			err = PTR_ERR(host->ice_mmio);
@@ -173,6 +175,7 @@ int ufshcd_qti_hba_init_crypto_capabilities(struct ufs_hba *hba)
 			host->ice_mmio = NULL;
 			goto out;
 		}
+		dev_info(hba->dev, "Mapped ufs_ice successfully to %pK\n", host->ice_mmio);
 	}
 
 #if IS_ENABLED(CONFIG_QTI_HW_KEY_MANAGER)
@@ -180,25 +183,37 @@ int ufshcd_qti_hba_init_crypto_capabilities(struct ufs_hba *hba)
 		hwkm_res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 							"ufs_ice_hwkm");
 		if (hwkm_res) {
+			dev_info(hba->dev, "Mapping ufs_ice_hwkm: start=0x%llx end=0x%llx size=0x%llx\n",
+				 (u64)hwkm_res->start, (u64)hwkm_res->end, (u64)resource_size(hwkm_res));
 			host->ice_hwkm_mmio = devm_ioremap_resource(hba->dev,
 								    hwkm_res);
 			if (IS_ERR(host->ice_hwkm_mmio)) {
 				dev_warn(hba->dev, "Failed to map ufs_ice_hwkm\n");
 				host->ice_hwkm_mmio = NULL;
+			} else {
+				dev_info(hba->dev, "Mapped ufs_ice_hwkm successfully to %pK\n", host->ice_hwkm_mmio);
 			}
 		}
 	}
 #endif
 
 	get_mmio_data(&mmio_data, host);
+	dev_info(hba->dev, "Calling crypto_qti_init_crypto\n");
 	err = crypto_qti_init_crypto(&mmio_data);
 	if (err) {
 		dev_err(hba->dev, "crypto_qti_init_crypto failed: %d\n", err);
 		goto out;
 	}
+	dev_info(hba->dev, "crypto_qti_init_crypto completed successfully\n");
 
+	dev_info(hba->dev, "Reading REG_UFS_CCAP at offset 0x%x\n", REG_UFS_CCAP);
 	hba->crypto_capabilities.reg_val =
 			cpu_to_le32(ufshcd_readl(hba, REG_UFS_CCAP));
+	dev_info(hba->dev, "REG_UFS_CCAP = 0x%08x (cfg_ptr=0x%x, num_cap=%d, cfg_cnt=%d)\n",
+		 hba->crypto_capabilities.reg_val,
+		 hba->crypto_capabilities.config_array_ptr,
+		 hba->crypto_capabilities.num_crypto_cap,
+		 hba->crypto_capabilities.config_count);
 	hba->crypto_cfg_register =
 		(u32)hba->crypto_capabilities.config_array_ptr * 0x100;
 	hba->crypto_cap_array =
@@ -210,10 +225,13 @@ int ufshcd_qti_hba_init_crypto_capabilities(struct ufs_hba *hba)
 	}
 
 	/* The actual number of configurations supported is (CFGC+1) */
+	dev_info(hba->dev, "Initializing devm_blk_ksm_init with %d slots\n",
+		 hba->crypto_capabilities.config_count + 1);
 	err = devm_blk_ksm_init(hba->dev, &hba->ksm,
 			hba->crypto_capabilities.config_count + 1);
 	if (err)
 		goto out;
+	dev_info(hba->dev, "devm_blk_ksm_init completed successfully\n");
 
 	hba->ksm.ksm_ll_ops = ufshcd_qti_ksm_ops;
 	/* UFS only supports 8 bytes for any DUN */
@@ -227,10 +245,15 @@ int ufshcd_qti_hba_init_crypto_capabilities(struct ufs_hba *hba)
 	 */
 	for (cap_idx = 0; cap_idx < hba->crypto_capabilities.num_crypto_cap;
 	     cap_idx++) {
+		u32 reg_off = REG_UFS_CRYPTOCAP + cap_idx * sizeof(__le32);
+		dev_info(hba->dev, "Reading CRYPTOCAP[%d] at offset 0x%x\n", cap_idx, reg_off);
 		hba->crypto_cap_array[cap_idx].reg_val =
-			cpu_to_le32(ufshcd_readl(hba,
-						 REG_UFS_CRYPTOCAP +
-						 cap_idx * sizeof(__le32)));
+			cpu_to_le32(ufshcd_readl(hba, reg_off));
+		dev_info(hba->dev, "CRYPTOCAP[%d] = 0x%08x (alg=%d, keysize=%d, sdus=0x%x)\n",
+			 cap_idx, hba->crypto_cap_array[cap_idx].reg_val,
+			 hba->crypto_cap_array[cap_idx].algorithm_id,
+			 hba->crypto_cap_array[cap_idx].key_size,
+			 hba->crypto_cap_array[cap_idx].sdus_mask);
 		blk_mode_num = ufshcd_find_blk_crypto_mode(
 						hba->crypto_cap_array[cap_idx]);
 		if (blk_mode_num != BLK_ENCRYPTION_MODE_INVALID)
