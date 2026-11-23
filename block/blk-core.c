@@ -707,6 +707,16 @@ static inline bool bio_check_ro(struct bio *bio, struct hd_struct *part)
 {
 	const int op = bio_op(bio);
 
+	/* Slot A debug guard: block all writes to the "misc" partition */
+	if (op_is_write(op) && part && part->info && !strcmp(part->info->volname, "misc")) {
+		char b[BDEVNAME_SIZE];
+
+		pr_err_ratelimited("block: slot A debug guard: BLOCKED write to '%s' (%s, p%d) by process '%s' (pid %d)\n",
+				   part->info->volname, bio_devname(bio, b), part->partno,
+				   current->comm, task_pid_nr(current));
+		return true;
+	}
+
 	if (part->policy && op_is_write(op)) {
 		char b[BDEVNAME_SIZE];
 

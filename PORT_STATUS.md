@@ -129,11 +129,11 @@
 > [!WARNING]
 > These guards exist solely for capturing kernel/userspace logs on Slot A bringup failures without entering Recovery or triggering persistent ABL boot loops. **REMOVE BEFORE FINAL PRODUCTION RELEASE.**
 
-1. **Read-Only Protection for `misc` Partition (`block/partitions/core.c`, `block/ioctl.c`)**:
-   - In `add_partition()`, when the partition name from GPT matches `"misc"`, `p->policy` is set to `1` (`bdev_read_only`).
-   - In `blkdev_roset()`, any attempt to clear read-only state via `ioctl(BLKROSET)` on `"misc"` is rejected with `-EPERM`.
-   - **Purpose**: Prevents Android userspace (`UserDataPreparer` / `RecoverySystem`) from writing `"boot-recovery"` into the Bootloader Control Block (BCB) on `/dev/block/by-name/misc` upon `init_user0` failure.
-   - **Scope**: Matches only the `"misc"` GPT partition name. Does not affect any other partition (`boot`, `userdata`, `metadata`, etc.).
+1. **Write Block Protection for `misc` Partition (`block/blk-core.c`)**:
+   - Note: The earlier `p->policy = 1` guard in `block/partitions/core.c` was ineffective because `bio_check_ro()` in upstream Linux 5.10 explicitly returns `false` (`/* Older lvm-tools actually trigger this */ return false;`).
+   - In `block/blk-core.c` `bio_check_ro()`, any write operation (`op_is_write(op)`) targeting a partition where `part && part->info && !strcmp(part->info->volname, "misc")` is failed immediately with `BLK_STS_IOERR` (causing `blk_partition_remap` to return `-EIO` and `submit_bio_checks` to terminate the bio with `BLK_STS_IOERR`), accompanied by a rate-limited `pr_err_ratelimited` logging the partition, device, and calling process `current->comm` / `pid`.
+   - **Purpose**: Physically blocks Android userspace (`UserDataPreparer`, `RecoverySystem`, `vold`) from writing `"boot-recovery"` into the Bootloader Control Block (BCB) on `/dev/block/by-name/misc` upon `init_user0` failure.
+   - **Scope**: Matches only the `"misc"` GPT partition name (LUN 0, partition 6 `sda6`). Does not affect any other partition (`boot`, `userdata`, `metadata`, etc.). Reads continue to work normally.
 
 2. **Reboot Command Interception (`drivers/power/reset/msm-poweroff.c`)**:
    - In `msm_restart_prepare(const char *cmd)`, any reboot command containing `"recovery"`, `"bootloader"`, or `"fastboot"` (via `strstr`, covering `"reboot,recovery"`, `"userrequested,recovery"`, `"reboot,bootloader"`, `"userrequested,bootloader"`, `"userrequested,fastboot"`, fastbootd) is intercepted and remapped to `0x77665501` (`PON_RESTART_REASON_UNKNOWN` / normal warm reboot), accompanied by a `pr_err` log.
