@@ -604,4 +604,6 @@ struct ufs_ioctl_query_data {
 	__u8 buffer[0];
 };
 
+extern int ufs_qcom_ice_step;
+
 #endif /* UFS_QCOM_H_ */

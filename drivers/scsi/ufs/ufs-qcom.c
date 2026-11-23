@@ -53,6 +53,11 @@
 #define	UFS_QCOM_IRQ_PRIME_MASK	0x80
 #define	UFS_QCOM_IRQ_SLVR_MASK	0x0f
 
+int ufs_qcom_ice_step = 0;
+module_param_named(ice_step, ufs_qcom_ice_step, int, 0644);
+MODULE_PARM_DESC(ice_step, "ICE crypto init progression step: 0=skip/control, 1=ioremap, 2=+version, 3=+fuse, 4=+ksm, 5=full S2");
+EXPORT_SYMBOL(ufs_qcom_ice_step);
+
 /* Max number of log pages */
 #define UFS_QCOM_MAX_LOG_SZ	10
 #define ufs_qcom_log_str(host, fmt, ...)	\
@@ -2323,7 +2328,14 @@ static void ufs_qcom_set_caps(struct ufs_hba *hba)
 		hba->caps |= UFSHCD_CAP_AGGR_POWER_COLLAPSE;
 	}
 
-	hba->caps |= UFSHCD_CAP_CRYPTO;
+	/*
+	 * Runtime gate: Keep steps 1-4 from setting UFSHCD_CAP_CRYPTO or CRYPTO_GENERAL_ENABLE unless 5.
+	 * Step 0 (control) leaves caps untouched (UFSHCD_CAP_CRYPTO set).
+	 */
+	if (ufs_qcom_ice_step == 0 || ufs_qcom_ice_step >= 5)
+		hba->caps |= UFSHCD_CAP_CRYPTO;
+	else
+		hba->caps &= ~UFSHCD_CAP_CRYPTO;
 
 	if (host->hw_ver.major >= 0x2)
 		host->caps = UFS_QCOM_CAP_QUNIPRO |
@@ -3412,16 +3424,23 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 
 	/*
 	 * Instantiate crypto capabilities for wrapped keys.
-	 * It is controlled by CONFIG_SCSI_UFS_CRYPTO_QTI.
+	 * Controlled by CONFIG_SCSI_UFS_CRYPTO_QTI and ufs_qcom.ice_step.
 	 */
-	err = ufshcd_qti_hba_init_crypto_capabilities(hba);
-	if (err) {
-		dev_err(dev, "%s: ufshcd_qti_hba_init_crypto_capabilities failed: %d\n",
-			__func__, err);
-		err = 0; /* continue, don't crash */
+	if (ufs_qcom_ice_step == 0) {
+		dev_info(dev, "%s: ice_step=0: skipping crypto init (control mode, caps untouched)\n",
+			 __func__);
 	} else {
-		dev_info(dev, "%s: crypto capabilities initialized: features=0x%x, slots=%d\n",
-			 __func__, hba->ksm.features, hba->ksm.num_slots);
+		dev_info(dev, "%s: running crypto init with ice_step=%d\n",
+			 __func__, ufs_qcom_ice_step);
+		err = ufshcd_qti_hba_init_crypto_capabilities(hba);
+		if (err) {
+			dev_err(dev, "%s: ufshcd_qti_hba_init_crypto_capabilities failed: %d\n",
+				__func__, err);
+			err = 0; /* continue, don't crash */
+		} else {
+			dev_info(dev, "%s: crypto capabilities initialized: features=0x%x, slots=%d, ice_step=%d\n",
+				 __func__, hba->ksm.features, hba->ksm.num_slots, ufs_qcom_ice_step);
+		}
 	}
 
 	if (hba->dev->id < MAX_UFS_QCOM_HOSTS)

@@ -103,6 +103,7 @@ int crypto_qti_init_crypto(const struct ice_mmio_data *mmio_data)
 {
 	int err = 0;
 	void __iomem *ice_mmio;
+	int step = mmio_data ? mmio_data->ice_step : 0;
 
 	if (!mmio_data || !mmio_data->ice_base_mmio) {
 		pr_err("%s: Invalid mmio_data\n", __func__);
@@ -116,19 +117,39 @@ int crypto_qti_init_crypto(const struct ice_mmio_data *mmio_data)
 		return err;
 	}
 
+	if (step == 2) {
+		pr_info("%s: ice_step=2: version read completed, stopping before fuse check\n",
+			__func__);
+		return 0;
+	}
+
+	pr_info("ice_check_fuse_setting: reading offset 0x%x (ICE_REGS_FUSE_SETTING)\n",
+		ICE_REGS_FUSE_SETTING);
 	err = ice_check_fuse_setting(ice_mmio);
 	if (err) {
 		pr_err("%s: check fuse failed, err %d\n", __func__, err);
 		return err;
 	}
 
+#if IS_ENABLED(CONFIG_QTI_HW_KEY_MANAGER)
+	if (mmio_data->ice_hwkm_mmio) {
+		pr_info("crypto_qti_init_crypto: initializing HWKM slave at %pK\n",
+			mmio_data->ice_hwkm_mmio);
+		err = qti_hwkm_init(mmio_data->ice_hwkm_mmio);
+		if (err) {
+			pr_err("%s: qti_hwkm_init failed, err %d\n", __func__, err);
+			return err;
+		}
+	}
+#endif
+
 	/*
 	 * S2 (5.4 parity): Do NOT run low_power_and_optimization_enable
 	 * or ice_wait_bist_status at init time. 5.4 runs them exclusively
 	 * in crypto_qti_enable() when the controller is started.
 	 */
-	pr_info("%s: ICE version and fuse checks passed successfully (S2 5.4 parity, BIST deferred)\n",
-		__func__);
+	pr_info("%s: ICE version and fuse checks passed successfully (S2 5.4 parity, BIST deferred, ice_step=%d)\n",
+		__func__, step);
 
 	return 0;
 }

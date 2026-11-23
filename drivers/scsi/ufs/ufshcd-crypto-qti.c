@@ -33,6 +33,7 @@ static void get_mmio_data(struct ice_mmio_data *data,
 #if IS_ENABLED(CONFIG_QTI_HW_KEY_MANAGER)
 	data->ice_hwkm_mmio = host->ice_hwkm_mmio;
 #endif
+	data->ice_step = ufs_qcom_ice_step;
 }
 
 static int ufshcd_crypto_qti_keyslot_program(struct blk_keyslot_manager *ksm,
@@ -150,6 +151,13 @@ int ufshcd_qti_hba_init_crypto_capabilities(struct ufs_hba *hba)
 #endif
 	struct ice_mmio_data mmio_data;
 
+	dev_info(hba->dev, "ufshcd_qti_hba_init_crypto_capabilities: ice_step=%d\n",
+		 ufs_qcom_ice_step);
+	if (ufs_qcom_ice_step == 0) {
+		dev_info(hba->dev, "ice_step=0: skipping crypto init (control mode, caps untouched)\n");
+		return 0;
+	}
+
 	/*
 	 * Don't use crypto if either the hardware doesn't advertise the
 	 * standard crypto capability bit *or* if the vendor specific driver
@@ -197,14 +205,34 @@ int ufshcd_qti_hba_init_crypto_capabilities(struct ufs_hba *hba)
 	}
 #endif
 
+	if (ufs_qcom_ice_step == 1) {
+		dev_info(hba->dev, "ice_step=1: ioremap completed, stopping before MMIO\n");
+		hba->caps &= ~UFSHCD_CAP_CRYPTO;
+		return 0;
+	}
+
 	get_mmio_data(&mmio_data, host);
-	dev_info(hba->dev, "Calling crypto_qti_init_crypto\n");
+	dev_info(hba->dev, "Calling crypto_qti_init_crypto (ice_step=%d)\n",
+		 ufs_qcom_ice_step);
 	err = crypto_qti_init_crypto(&mmio_data);
 	if (err) {
 		dev_err(hba->dev, "crypto_qti_init_crypto failed: %d\n", err);
 		goto out;
 	}
-	dev_info(hba->dev, "crypto_qti_init_crypto completed successfully\n");
+	dev_info(hba->dev, "crypto_qti_init_crypto completed successfully (ice_step=%d)\n",
+		 ufs_qcom_ice_step);
+
+	if (ufs_qcom_ice_step == 2) {
+		dev_info(hba->dev, "ice_step=2: version read completed, stopping before fuse/CCAP\n");
+		hba->caps &= ~UFSHCD_CAP_CRYPTO;
+		return 0;
+	}
+
+	if (ufs_qcom_ice_step == 3) {
+		dev_info(hba->dev, "ice_step=3: fuse check completed, stopping before ksm/CCAP\n");
+		hba->caps &= ~UFSHCD_CAP_CRYPTO;
+		return 0;
+	}
 
 	dev_info(hba->dev, "Reading REG_UFS_CCAP at offset 0x%x\n", REG_UFS_CCAP);
 	hba->crypto_capabilities.reg_val =
@@ -261,8 +289,14 @@ int ufshcd_qti_hba_init_crypto_capabilities(struct ufs_hba *hba)
 				hba->crypto_cap_array[cap_idx].sdus_mask * 512;
 	}
 
+	if (ufs_qcom_ice_step == 4) {
+		dev_info(hba->dev, "ice_step=4: ksm init completed, stopping without setting UFSHCD_CAP_CRYPTO\n");
+		hba->caps &= ~UFSHCD_CAP_CRYPTO;
+		return 0;
+	}
+
 	hba->caps |= UFSHCD_CAP_CRYPTO;
-	dev_info(hba->dev, "UFS QTI crypto initialized successfully\n");
+	dev_info(hba->dev, "ice_step=5: full S2 crypto initialized successfully (UFSHCD_CAP_CRYPTO set)\n");
 	return 0;
 
 out:
